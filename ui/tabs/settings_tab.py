@@ -3,6 +3,7 @@ import os
 import gradio as gr
 import roop.globals
 import ui.globals
+from roop.utilities import clean_dir
 
 available_themes = ["Default", "gradio/glass", "gradio/monochrome", "gradio/seafoam", "gradio/soft", "gstaff/xkcd", "freddyaboulton/dracula_revamped", "ysharma/steampunk"]
 image_formats = ['jpg','png', 'webp']
@@ -102,14 +103,13 @@ def on_settings_changed(evt: gr.SelectData):
 def clean_temp():
     from ui.main import prepare_environment
     
-    if not roop.globals.CFG.use_os_temp_folder:
-        shutil.rmtree(os.environ["TEMP"])
-    prepare_environment()
-   
     ui.globals.ui_input_thumbs.clear()
     roop.globals.INPUT_FACESETS.clear()
     roop.globals.TARGET_FACES.clear()
     ui.globals.ui_target_thumbs = []
+    if not roop.globals.CFG.use_os_temp_folder:
+        clean_dir(os.environ["TEMP"])
+    prepare_environment()
     gr.Info('Temp Files removed')
     return None,None,None,None
 

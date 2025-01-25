@@ -3,11 +3,10 @@ import cv2
 import numpy as np
 import psutil
 
-from enum import Enum
 from roop.ProcessOptions import ProcessOptions
 
-from roop.face_util import get_first_face, get_all_faces, rotate_image_180, rotate_anticlockwise, rotate_clockwise, clamp_cut_values
-from roop.utilities import compute_cosine_distance, get_device, str_to_class
+from roop.face_util import get_first_face, get_all_faces, rotate_anticlockwise, rotate_clockwise, clamp_cut_values
+from roop.utilities import compute_cosine_distance, get_device, str_to_class, shuffle_array
 import roop.vr_util as vr
 
 from typing import Any, List, Callable
@@ -17,7 +16,9 @@ from threading import Thread, Lock
 from queue import Queue
 from tqdm import tqdm
 from roop.ffmpeg_writer import FFMPEG_VideoWriter
+from roop.StreamWriter import StreamWriter
 import roop.globals
+
 
 
 # Poor man's enum to be able to compare to int
@@ -25,7 +26,8 @@ class eNoFaceAction():
     USE_ORIGINAL_FRAME = 0
     RETRY_ROTATED = 1
     SKIP_FRAME = 2
-    SKIP_FRAME_IF_DISSIMILAR = 3
+    SKIP_FRAME_IF_DISSIMILAR = 3,
+    USE_LAST_SWAPPED = 4
 
 
 
@@ -42,6 +44,7 @@ def pick_queue(queue: Queue[str], queue_per_future: int) -> List[str]:
         if not queue.empty():
             queues.append(queue.get())
     return queues
+
 
 
 class ProcessMgr():
@@ -64,11 +67,16 @@ class ProcessMgr():
     processed_queue = None
 
     videowriter= None
+    streamwriter = None
 
     progress_gradio = None
     total_frames = 0
 
-    
+    num_frames_no_face = 0
+    last_swapped_frame = None
+
+    output_to_file = None
+    output_to_cam = None
 
 
     plugins =  { 
@@ -101,12 +109,19 @@ class ProcessMgr():
     def initialize(self, input_faces, target_faces, options):
         self.input_face_datas = input_faces
         self.target_face_datas = target_faces
+        self.num_frames_no_face = 0
+        self.last_swapped_frame = None
         self.options = options
         devicename = get_device()
 
         roop.globals.g_desired_face_analysis=["landmark_3d_68", "landmark_2d_106","detection","recognition"]
         if options.swap_mode == "all_female" or options.swap_mode == "all_male":
             roop.globals.g_desired_face_analysis.append("genderage")
+        elif options.swap_mode == "all_random":
+            # don't modify original list
+            self.input_face_datas = input_faces.copy()
+            shuffle_array(self.input_face_datas)
+
 
         for p in self.processors:
             newp = next((x for x in options.processors.keys() if x == p.processorname), None)
@@ -123,6 +138,14 @@ class ProcessMgr():
                 p = str_to_class(module, classname)
             if p is not None:
                 extoption.update({"devicename": devicename})
+                if p.type == "swap":
+                    if self.options.swap_modelname == "InSwapper 128":
+                        extoption.update({"modelname": "inswapper_128.onnx"})
+                    elif self.options.swap_modelname == "ReSwapper 128":
+                        extoption.update({"modelname": "reswapper_128.onnx"})
+                    elif self.options.swap_modelname == "ReSwapper 256":
+                        extoption.update({"modelname": "reswapper_256.onnx"})
+
                 p.Initialize(extoption)
                 newprocessors.append(p)
             else:
@@ -185,7 +208,8 @@ class ProcessMgr():
                     resimg = self.process_frame(temp_frame)
                 if resimg is not None:
                     i = source_files.index(f)
-                    cv2.imwrite(target_files[i], resimg)
+                    # Also let numpy write the file to support utf-8/16 filenames
+                    cv2.imencode(f'.{roop.globals.CFG.output_image_format}',resimg)[1].tofile(target_files[i])
             if update:
                 update()
 
@@ -239,7 +263,10 @@ class ProcessMgr():
             process, frame = self.processed_queue[nextindex % self.num_threads].get()
             nextindex += 1
             if frame is not None:
-                self.videowriter.write_frame(frame)
+                if self.output_to_file:
+                    self.videowriter.write_frame(frame)
+                if self.output_to_cam:
+                    self.streamwriter.WriteToStream(frame)
                 del frame
             elif process == False:
                 num_producers -= 1
@@ -248,7 +275,11 @@ class ProcessMgr():
             
 
 
-    def run_batch_inmem(self, source_video, target_video, frame_start, frame_end, fps, threads:int = 1, skip_audio=False):
+    def run_batch_inmem(self, output_method, source_video, target_video, frame_start, frame_end, fps, threads:int = 1):
+        if len(self.processors) < 1:
+            print("No processor defined!")
+            return
+
         cap = cv2.VideoCapture(source_video)
         # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_count = (frame_end - frame_start) + 1
@@ -275,7 +306,13 @@ class ProcessMgr():
             self.frames_queue.append(Queue(1))
             self.processed_queue.append(Queue(1))
 
-        self.videowriter =  FFMPEG_VideoWriter(target_video, (width, height), fps, codec=roop.globals.video_encoder, crf=roop.globals.video_quality, audiofile=None)
+        self.output_to_file = output_method != "Virtual Camera"
+        self.output_to_cam = output_method == "Virtual Camera" or output_method == "Both"
+
+        if self.output_to_file:
+            self.videowriter = FFMPEG_VideoWriter(target_video, (width, height), fps, codec=roop.globals.video_encoder, crf=roop.globals.video_quality, audiofile=None)
+        if self.output_to_cam:
+            self.streamwriter = StreamWriter((width, height), int(fps))
 
         readthread = Thread(target=self.read_frames_thread, args=(cap, frame_start, frame_end, threads))
         readthread.start()
@@ -298,7 +335,11 @@ class ProcessMgr():
         readthread.join()
         writethread.join()
         cap.release()
-        self.videowriter.close()
+        if self.output_to_file:
+            self.videowriter.close()
+        if self.output_to_cam:
+            self.streamwriter.Close()
+
         self.frames_queue.clear()
         self.processed_queue.clear()
 
@@ -317,11 +358,6 @@ class ProcessMgr():
             self.progress_gradio((progress.n, self.total_frames), desc='Processing', total=self.total_frames, unit='frames')
 
 
-# https://github.com/deepinsight/insightface#third-party-re-implementation-of-arcface
-# https://github.com/deepinsight/insightface/blob/master/alignment/coordinate_reg/image_infer.py
-# https://github.com/deepinsight/insightface/issues/1350
-# https://github.com/linghu8812/tensorrt_inference
-
 
     def process_frame(self, frame:Frame):
         if len(self.input_face_datas) < 1 and not self.options.show_face_masking:
@@ -332,8 +368,16 @@ class ProcessMgr():
             if roop.globals.no_face_action == eNoFaceAction.SKIP_FRAME_IF_DISSIMILAR:
                 if len(self.input_face_datas) > num_swapped:
                     return None
+            self.num_frames_no_face = 0
+            self.last_swapped_frame = temp_frame.copy()
             return temp_frame
-        if roop.globals.no_face_action == eNoFaceAction.USE_ORIGINAL_FRAME:
+        if roop.globals.no_face_action == eNoFaceAction.USE_LAST_SWAPPED:
+            if self.last_swapped_frame is not None and self.num_frames_no_face < self.options.max_num_reuse_frame:
+                self.num_frames_no_face += 1
+                return self.last_swapped_frame.copy()
+            return frame
+
+        elif roop.globals.no_face_action == eNoFaceAction.USE_ORIGINAL_FRAME:
             return frame
         if roop.globals.no_face_action == eNoFaceAction.SKIP_FRAME:
             #This only works with in-mem processing, as it simply skips the frame.
@@ -374,6 +418,8 @@ class ProcessMgr():
             
             num_faces_found += 1
             temp_frame = self.process_face(self.options.selected_index, face, temp_frame)
+            del face
+
         else:
             faces = get_all_faces(frame)
             if faces is None:
@@ -383,7 +429,14 @@ class ProcessMgr():
                 for face in faces:
                     num_faces_found += 1
                     temp_frame = self.process_face(self.options.selected_index, face, temp_frame)
-                    del face
+
+            elif self.options.swap_mode == "all_input" or self.options.swap_mode == "all_random":
+                for i,face in enumerate(faces):
+                    num_faces_found += 1
+                    if i < len(self.input_face_datas):
+                        temp_frame = self.process_face(i, face, temp_frame)
+                    else:
+                        break
             
             elif self.options.swap_mode == "selected":
                 num_targetfaces = len(self.target_face_datas) 
@@ -397,7 +450,6 @@ class ProcessMgr():
                                 else:
                                     temp_frame = self.process_face(i, face, temp_frame)
                                 num_faces_found += 1
-                            del face
                             if not roop.globals.vr_mode and num_faces_found == num_targetfaces:
                                 break
             elif self.options.swap_mode == "all_female" or self.options.swap_mode == "all_male":
@@ -406,7 +458,13 @@ class ProcessMgr():
                     if face.sex == gender:
                         num_faces_found += 1
                         temp_frame = self.process_face(self.options.selected_index, face, temp_frame)
-                    del face
+            
+            # might be slower but way more clean to release everything here
+            for face in faces:
+                del face
+            faces.clear()
+
+
 
         if roop.globals.vr_mode and num_faces_found % 2 > 0:
             # stereo image, there has to be an even number of faces
@@ -541,17 +599,31 @@ class ProcessMgr():
 
             # img = vr.GetPerspective(frame, 90, theta, phi, 1280, 1280)  # Generate perspective image
 
-        fake_frame = None
-        aligned_img, M = align_crop(frame, target_face.kps, 128)
+
+        """ Code ported/adapted from Facefusion which borrowed the idea from Rope:
+            Kind of subsampling the cutout and aligned face image and faceswapping slices of it up to
+            the desired output resolution. This works around the current resolution limitations without using enhancers.
+        """
+        model_output_size = self.options.swap_output_size
+        subsample_size = max(self.options.subsample_size, model_output_size)
+        subsample_total = subsample_size // model_output_size
+        aligned_img, M = align_crop(frame, target_face.kps, subsample_size)
+
         fake_frame = aligned_img
-        swap_frame = aligned_img
         target_face.matrix = M
+
         for p in self.processors:
             if p.type == 'swap':
-                if inputface is not None:
+                swap_result_frames = []
+                subsample_frames = self.implode_pixel_boost(aligned_img, model_output_size, subsample_total)
+                for sliced_frame in subsample_frames:
                     for _ in range(0,self.options.num_swap_steps):
-                        swap_frame = p.Run(inputface, target_face, swap_frame)
-                fake_frame = swap_frame
+                        sliced_frame = self.prepare_crop_frame(sliced_frame)
+                        sliced_frame = p.Run(inputface, target_face, sliced_frame)
+                        sliced_frame = self.normalize_swap_frame(sliced_frame)
+                    swap_result_frames.append(sliced_frame)
+                fake_frame = self.explode_pixel_boost(swap_result_frames, model_output_size, subsample_total, subsample_size)
+                fake_frame = fake_frame.astype(np.uint8)
                 scale_factor = 0.0
             elif p.type == 'mask':
                 fake_frame = self.process_mask(p, aligned_img, fake_frame)
@@ -560,8 +632,8 @@ class ProcessMgr():
 
         upscale = 512
         orig_width = fake_frame.shape[1]
-
-        fake_frame = cv2.resize(fake_frame, (upscale, upscale), cv2.INTER_CUBIC)
+        if orig_width != upscale:
+            fake_frame = cv2.resize(fake_frame, (upscale, upscale), cv2.INTER_CUBIC)
         mask_offsets = (0,0,0,0,1,20) if inputface is None else inputface.mask_offsets
 
         
@@ -571,9 +643,14 @@ class ProcessMgr():
         else:
             result = self.paste_upscale(fake_frame, enhanced_frame, target_face.matrix, frame, scale_factor, mask_offsets)
 
+        # Restore mouth before unrotating
+        if self.options.restore_original_mouth:
+            mouth_cutout, mouth_bb = self.create_mouth_mask(target_face, frame)
+            result = self.apply_mouth_area(result, mouth_cutout, mouth_bb)
+
         if rotation_action is not None:
             fake_frame = self.auto_unrotate_frame(result, rotation_action)
-            return self.paste_simple(fake_frame, saved_frame, startX, startY)
+            result = self.paste_simple(fake_frame, saved_frame, startX, startY)
         
         return result
 
@@ -673,6 +750,43 @@ class ProcessMgr():
         return cv2.GaussianBlur(img_matte, blur_size, 0)
 
 
+    def prepare_crop_frame(self, swap_frame):
+        model_type = 'inswapper'
+        model_mean = [0.0, 0.0, 0.0]
+        model_standard_deviation = [1.0, 1.0, 1.0]
+
+        if model_type == 'ghost':
+            swap_frame = swap_frame[:, :, ::-1] / 127.5 - 1
+        else:
+            swap_frame = swap_frame[:, :, ::-1] / 255.0
+        swap_frame = (swap_frame - model_mean) / model_standard_deviation
+        swap_frame = swap_frame.transpose(2, 0, 1)
+        swap_frame = np.expand_dims(swap_frame, axis = 0).astype(np.float32)
+        return swap_frame
+
+
+    def normalize_swap_frame(self, swap_frame):
+        model_type = 'inswapper'
+        swap_frame = swap_frame.transpose(1, 2, 0)
+
+        if model_type == 'ghost':
+            swap_frame = (swap_frame * 127.5 + 127.5).round()
+        else:
+            swap_frame = (swap_frame * 255.0).round()
+        swap_frame = swap_frame[:, :, ::-1]
+        return swap_frame
+
+    def implode_pixel_boost(self, aligned_face_frame, model_size, pixel_boost_total : int):
+        subsample_frame = aligned_face_frame.reshape(model_size, pixel_boost_total, model_size, pixel_boost_total, 3)
+        subsample_frame = subsample_frame.transpose(1, 3, 0, 2, 4).reshape(pixel_boost_total ** 2, model_size, model_size, 3)
+        return subsample_frame
+
+
+    def explode_pixel_boost(self, subsample_frame, model_size, pixel_boost_total, pixel_boost_size):
+        final_frame = np.stack(subsample_frame, axis = 0).reshape(pixel_boost_total, pixel_boost_total, model_size, model_size, 3)
+        final_frame = final_frame.transpose(2, 0, 3, 1, 4).reshape(pixel_boost_size, pixel_boost_size, 3)
+        return final_frame
+
     def process_mask(self, processor, frame:Frame, target:Frame):
         img_mask = processor.Run(frame, self.options.masking_text)
         img_mask = cv2.resize(img_mask, (target.shape[1], target.shape[0]))
@@ -688,7 +802,98 @@ class ProcessMgr():
         result += img_mask * frame.astype(np.float32)
         return np.uint8(result)
 
+
+    # Code for mouth restoration adapted from https://github.com/iVideoGameBoss/iRoopDeepFaceCam
+    
+    def create_mouth_mask(self, face: Face, frame: Frame):
+        mouth_cutout = None
+        
+        landmarks = face.landmark_2d_106
+        if landmarks is not None:
+            # Get mouth landmarks (indices 52 to 71 typically represent the outer mouth)
+            mouth_points = landmarks[52:71].astype(np.int32)
             
+            # Add padding to mouth area
+            min_x, min_y = np.min(mouth_points, axis=0)
+            max_x, max_y = np.max(mouth_points, axis=0)
+            min_x = max(0, min_x - (15*6))
+            min_y = max(0, min_y - 22)
+            max_x = min(frame.shape[1], max_x + (15*6))
+            max_y = min(frame.shape[0], max_y + (90*6))
+            
+            # Extract the mouth area from the frame using the calculated bounding box
+            mouth_cutout = frame[min_y:max_y, min_x:max_x].copy()
+
+        return mouth_cutout, (min_x, min_y, max_x, max_y)
+
+
+
+    def create_feathered_mask(self, shape, feather_amount=30):
+        mask = np.zeros(shape[:2], dtype=np.float32)
+        center = (shape[1] // 2, shape[0] // 2)
+        cv2.ellipse(mask, center, (shape[1] // 2 - feather_amount, shape[0] // 2 - feather_amount), 
+                    0, 0, 360, 1, -1)
+        mask = cv2.GaussianBlur(mask, (feather_amount*2+1, feather_amount*2+1), 0)
+        return mask / np.max(mask)
+
+    def apply_mouth_area(self, frame: np.ndarray, mouth_cutout: np.ndarray, mouth_box: tuple) -> np.ndarray:
+        min_x, min_y, max_x, max_y = mouth_box
+        box_width = max_x - min_x
+        box_height = max_y - min_y
+        
+
+        # Resize the mouth cutout to match the mouth box size
+        if mouth_cutout is None or box_width is None or box_height is None:
+            return frame
+        try:
+            resized_mouth_cutout = cv2.resize(mouth_cutout, (box_width, box_height))
+            
+            # Extract the region of interest (ROI) from the target frame
+            roi = frame[min_y:max_y, min_x:max_x]
+            
+            # Ensure the ROI and resized_mouth_cutout have the same shape
+            if roi.shape != resized_mouth_cutout.shape:
+                resized_mouth_cutout = cv2.resize(resized_mouth_cutout, (roi.shape[1], roi.shape[0]))
+            
+            # Apply color transfer from ROI to mouth cutout
+            color_corrected_mouth = self.apply_color_transfer(resized_mouth_cutout, roi)
+            
+            # Create a feathered mask with increased feather amount
+            feather_amount = min(30, box_width // 15, box_height // 15)
+            mask = self.create_feathered_mask(resized_mouth_cutout.shape, feather_amount)
+            
+            # Blend the color-corrected mouth cutout with the ROI using the feathered mask
+            mask = mask[:,:,np.newaxis]  # Add channel dimension to mask
+            blended = (color_corrected_mouth * mask + roi * (1 - mask)).astype(np.uint8)
+            
+            # Place the blended result back into the frame
+            frame[min_y:max_y, min_x:max_x] = blended
+        except Exception as e:
+            print(f'Error {e}')
+            pass
+
+        return frame
+
+    def apply_color_transfer(self, source, target):
+        """
+        Apply color transfer from target to source image
+        """
+        source = cv2.cvtColor(source, cv2.COLOR_BGR2LAB).astype("float32")
+        target = cv2.cvtColor(target, cv2.COLOR_BGR2LAB).astype("float32")
+
+        source_mean, source_std = cv2.meanStdDev(source)
+        target_mean, target_std = cv2.meanStdDev(target)
+
+        # Reshape mean and std to be broadcastable
+        source_mean = source_mean.reshape(1, 1, 3)
+        source_std = source_std.reshape(1, 1, 3)
+        target_mean = target_mean.reshape(1, 1, 3)
+        target_std = target_std.reshape(1, 1, 3)
+
+        # Perform the color transfer
+        source = (source - source_mean) * (target_std / source_std) + target_mean
+        return cv2.cvtColor(np.clip(source, 0, 255).astype("uint8"), cv2.COLOR_LAB2BGR)
+
 
 
     def unload_models():
@@ -699,4 +904,8 @@ class ProcessMgr():
         for p in self.processors:
             p.Release()
         self.processors.clear()
+        if self.videowriter is not None:
+            self.videowriter.close()
+        if self.streamwriter is not None:
+            self.streamwriter.Close()
 

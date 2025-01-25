@@ -13,6 +13,12 @@ import tempfile
 import cv2
 import zipfile
 import traceback
+import threading
+import threading
+import random
+
+from typing import Union, Any
+from contextlib import nullcontext
 
 from pathlib import Path
 from typing import List, Any
@@ -25,6 +31,10 @@ import roop.globals
 
 TEMP_FILE = "temp.mp4"
 TEMP_DIRECTORY = "temp"
+
+THREAD_SEMAPHORE = threading.Semaphore()
+NULL_CONTEXT  = nullcontext()
+
 
 # monkey patch ssl for mac
 if platform.system().lower() == "darwin":
@@ -173,6 +183,8 @@ def has_extension(filepath: str, extensions: List[str]) -> bool:
 
 def is_image(image_path: str) -> bool:
     if image_path and os.path.isfile(image_path):
+        if image_path.endswith(".webp"):
+            return True
         mimetype, _ = mimetypes.guess_type(image_path)
         return bool(mimetype and mimetype.startswith("image/"))
     return False
@@ -337,3 +349,45 @@ gradio: {gradio.__version__}
 
 def compute_cosine_distance(emb1, emb2) -> float:
     return distance.cosine(emb1, emb2)
+
+def has_cuda_device():
+    return torch.cuda is not None and torch.cuda.is_available()
+
+
+def print_cuda_info():
+    try:
+        print(f'Number of CUDA devices: {torch.cuda.device_count()} Currently used Id: {torch.cuda.current_device()} Device Name: {torch.cuda.get_device_name(torch.cuda.current_device())}')
+    except:
+       print('No CUDA device found!')
+
+def clean_dir(path: str):
+    contents = os.listdir(path)
+    for item in contents:
+        item_path = os.path.join(path, item)
+        try:
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+        except Exception as e:
+            print(e)
+            
+
+def conditional_thread_semaphore() -> Union[Any, Any]:
+    if 'DmlExecutionProvider' in roop.globals.execution_providers or 'ROCMExecutionProvider' in roop.globals.execution_providers:
+        return THREAD_SEMAPHORE
+    return NULL_CONTEXT
+
+def shuffle_array(arr):
+  """
+  Shuffles the given array in place using the Fisher-Yates shuffle algorithm.
+
+  Args:
+    arr: The array to be shuffled.
+
+  Returns:
+    None. The array is shuffled in place.
+  """
+  for i in range(len(arr) - 1, 0, -1):
+    j = random.randint(0, i)
+    arr[i], arr[j] = arr[j], arr[i]

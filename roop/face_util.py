@@ -9,18 +9,18 @@ import cv2
 import numpy as np
 from skimage import transform as trans
 from roop.capturer import get_video_frame
-from roop.utilities import resolve_relative_path, conditional_download
+from roop.utilities import resolve_relative_path, conditional_thread_semaphore
 
 FACE_ANALYSER = None
-THREAD_LOCK_ANALYSER = threading.Lock()
-THREAD_LOCK_SWAPPER = threading.Lock()
+#THREAD_LOCK_ANALYSER = threading.Lock()
+#THREAD_LOCK_SWAPPER = threading.Lock()
 FACE_SWAPPER = None
 
 
 def get_face_analyser() -> Any:
     global FACE_ANALYSER
 
-    with THREAD_LOCK_ANALYSER:
+    with conditional_thread_semaphore():
         if FACE_ANALYSER is None or roop.globals.g_current_face_analysis != roop.globals.g_desired_face_analysis:
             model_path = resolve_relative_path('..')
             # removed genderage
@@ -210,17 +210,49 @@ arcface_dst = np.array(
 )
 
 
-def estimate_norm(lmk, image_size=112, mode="arcface"):
+""" def estimate_norm(lmk, image_size=112):
     assert lmk.shape == (5, 2)
-    assert image_size % 112 == 0 or image_size % 128 == 0
     if image_size % 112 == 0:
         ratio = float(image_size) / 112.0
         diff_x = 0
-    else:
+    elif image_size % 128 == 0:
         ratio = float(image_size) / 128.0
         diff_x = 8.0 * ratio
+    elif image_size % 512 == 0:
+        ratio = float(image_size) / 512.0
+        diff_x = 32.0 * ratio
+
     dst = arcface_dst * ratio
     dst[:, 0] += diff_x
+    tform = trans.SimilarityTransform()
+    tform.estimate(lmk, dst)
+    M = tform.params[0:2, :]
+    return M
+ """
+
+def estimate_norm(lmk, image_size=112):
+    if image_size%112==0:
+        ratio = float(image_size)/112.0
+        diff_x = 0
+    else:
+        ratio = float(image_size)/128.0
+        diff_x = 8.0*ratio
+    dst = arcface_dst * ratio
+    dst[:,0] += diff_x
+
+    if image_size == 160:
+        dst[:,0] += 0.1
+        dst[:,1] += 0.1
+    elif image_size == 256:
+        dst[:,0] += 0.5
+        dst[:,1] += 0.5
+    elif image_size == 320:
+        dst[:,0] += 0.75
+        dst[:,1] += 0.75
+    elif image_size == 512:
+        dst[:,0] += 1.5
+        dst[:,1] += 1.5
+
     tform = trans.SimilarityTransform()
     tform.estimate(lmk, dst)
     M = tform.params[0:2, :]
@@ -230,7 +262,7 @@ def estimate_norm(lmk, image_size=112, mode="arcface"):
 
 # aligned, M = norm_crop2(f[1], face.kps, 512)
 def align_crop(img, landmark, image_size=112, mode="arcface"):
-    M = estimate_norm(landmark, image_size, mode)
+    M = estimate_norm(landmark, image_size)
     warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
     return warped, M
 

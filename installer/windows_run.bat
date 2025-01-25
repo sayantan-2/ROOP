@@ -14,9 +14,9 @@ set INSTALL_DIR=%cd%\installer_files
 set CONDA_ROOT_PREFIX=%cd%\installer_files\conda
 set INSTALL_ENV_DIR=%cd%\installer_files\env
 set MINICONDA_DOWNLOAD_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe
-set FFMPEG_DOWNLOAD_URL=https://github.com/GyanD/codexffmpeg/releases/download/2023-06-21-git-1bcb8a7338/ffmpeg-2023-06-21-git-1bcb8a7338-essentials_build.zip
+set FFMPEG_DOWNLOAD_URL=https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip
 set INSTALL_FFMPEG_DIR=%cd%\installer_files\ffmpeg
-set INSIGHTFACE_PACKAGE_URL=https://github.com/Gourieff/Assets/raw/refs/heads/main/Insightface/insightface-0.7.3-cp310-cp310-win_amd64.whl
+set INSIGHTFACE_PACKAGE_URL=https://github.com/C0untFloyd/roop-unleashed/releases/download/3.6.6/insightface-0.7.3-cp310-cp310-win_amd64.whl
 set INSIGHTFACE_PACKAGE_PATH=%INSTALL_DIR%\insightface-0.7.3-cp310-cp310-win_amd64.whl
 
 set conda_exists=F
@@ -70,12 +70,8 @@ if "%ffmpeg_exists%" == "F" (
         echo Downloading ffmpeg from %FFMPEG_DOWNLOAD_URL% to %INSTALL_DIR%
         call curl -Lk "%FFMPEG_DOWNLOAD_URL%" > "%INSTALL_DIR%\ffmpeg.zip" || ( echo. && echo ffmpeg failed to download. && goto end )
         call powershell -command "Expand-Archive -Force '%INSTALL_DIR%\ffmpeg.zip' '%INSTALL_DIR%\'"
-        cd "installer_files"
-        setlocal EnableExtensions EnableDelayedExpansion
-        for /f "tokens=*" %%f in ('dir /s /b /ad "ffmpeg\*"') do (
-            ren "%%f" "ffmpeg"
-        )
-        endlocal
+        cd "%INSTALL_DIR%"
+        move ffmpeg-* ffmpeg
         setx PATH "%INSTALL_FFMPEG_DIR%\bin\;%PATH%"
         echo To use videos, you need to restart roop after this installation.
         cd ..
