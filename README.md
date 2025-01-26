@@ -43,6 +43,11 @@ In the event of violation of the legal and ethical requirements of the user's co
 7. pip install "numpy<2.0" 
 8. python run.py
 
+NOTE: This installation assumes a proper installation of your system. Including python, miniconda, git, ffmpeg, VSBuildTools2019
+
+ *A free system checker can be found here*: https://www.patreon.com/posts/automated-system-117200313
+
+*An AI System Setup Script can be acquired here*: https://www.patreon.com/posts/117210030
 
 
 
