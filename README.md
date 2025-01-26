@@ -34,6 +34,7 @@ Users of this software are expected to use this software responsibly while abidi
 In the event of violation of the legal and ethical requirements of the user's country or region, this code repository is exempt from liability
 
 ### Installation
+0. git clone https://codeberg.org/Cognibuild/ROOP-FLOYD/
 1. cd ROOP-FLOYD
 2. python -m venv venv && call venv/scripts/activate
 3. (FOR NVIDIA) conda install -c nvidia cudatoolkit=11.8 -y
