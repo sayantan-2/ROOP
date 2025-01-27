@@ -76,7 +76,8 @@ def run():
 
         uii.ui_restart_server = False
         try:
-            ui.queue().launch(inbrowser=launch_browser, server_name=server_name, server_port=server_port, share=roop.globals.CFG.server_share, ssl_verify=ssl_verify, prevent_thread_lock=True, show_error=True)
+            # Add share=True to make the app publicly accessible
+            ui.queue().launch(inbrowser=launch_browser, server_name=server_name, server_port=server_port, share=True, ssl_verify=ssl_verify, prevent_thread_lock=True, show_error=True)
         except Exception as e:
             print(f'Exception {e} when launching Gradio Server!')
             uii.ui_restart_server = True
@@ -89,7 +90,6 @@ def run():
             print("Keyboard interruption in main thread... closing server.")
             run_server = False
         ui.close()
-
 
 def show_msg(msg: str):
     gr.Info(msg)
