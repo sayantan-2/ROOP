@@ -2,7 +2,7 @@
 title: roop-floyd
 app_file: run.py
 sdk: gradio
-sdk_version: 4.32.1
+sdk_version: 4.4.1
 ---
 # roop-floyd
 
@@ -34,10 +34,11 @@ Users of this software are expected to use this software responsibly while abidi
 In the event of violation of the legal and ethical requirements of the user's country or region, this code repository is exempt from liability
 
 ### Installation
-Google Colab
+Google Colab by
 1. download roop-floyd.iypnb
 
 Local Machine
+
 0. git clone https://codeberg.org/Cognibuild/ROOP-FLOYD/
 1. cd ROOP-FLOYD
 2. python -m venv venv && call venv/scripts/activate
