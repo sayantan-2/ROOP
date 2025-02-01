@@ -57,8 +57,6 @@ NOTE: This installation assumes a proper installation of your system. Including 
 *An AI System Setup Script can be acquired here*: https://www.patreon.com/posts/117210030
 
 
-
-
 ### Usage
 
 - Windows: Activate the virtual environment and run python run.py
