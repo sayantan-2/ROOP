@@ -43,7 +43,8 @@ Local Machine
 1. cd ROOP-FLOYD
 2. python -m venv venv && call venv/scripts/activate
 3. (FOR NVIDIA) conda install -c nvidia cudatoolkit=11.8 -y
-4. pip install -r requirements.txt
+3. (FOR AMD) pip install onnxruntime-directml
+4. pip install -r requirementspip install onnxruntime-directml.txt
 5. pip install --upgrade gradio --force
 6. pip install --upgrade fastapi pydantic
 7. pip install "numpy<2.0" 
