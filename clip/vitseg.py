@@ -17,7 +17,7 @@ from torchvision.models import ResNet
 
 def process_prompts(conditional, prompt_list, conditional_map):
     # DEPRECATED
-            
+
     # randomly sample a synonym
     words = [conditional_map[int(i)] for i in conditional]
     words = [syns[torch.multinomial(torch.ones(len(syns)), 1, replacement=True).item()] for syns in words]
@@ -33,7 +33,7 @@ def process_prompts(conditional, prompt_list, conditional_map):
 
 
 class VITDenseBase(nn.Module):
-    
+
     def rescaled_pos_emb(self, new_size):
         assert len(new_size) == 2
 
@@ -42,7 +42,7 @@ class VITDenseBase(nn.Module):
         return torch.cat([self.model.positional_embedding[:1], b])
 
     def visual_forward(self, x_inp, extract_layers=(), skip=False, mask=None):
-        
+
         with torch.no_grad():
 
             x_inp = nnf.interpolate(x_inp, (384, 384))
@@ -61,7 +61,7 @@ class VITDenseBase(nn.Module):
 
                 if i in extract_layers:
                     # permute to be compatible with CLIP
-                    activations += [x.permute(1,0,2)]                
+                    activations += [x.permute(1,0,2)]
 
             x = self.model.norm(x)
             x = self.model.head(self.model.pre_logits(x[:, 0]))
@@ -100,7 +100,7 @@ class VITDenseBase(nn.Module):
                 cond, _, _ = self.visual_forward(conditional)
         else:
             raise ValueError('invalid conditional')
-        return cond   
+        return cond
 
     def compute_conditional(self, conditional):
         import clip
@@ -116,15 +116,15 @@ class VITDenseBase(nn.Module):
             else:
                 text_tokens = clip.tokenize([conditional]).to(dev)
                 cond = self.clip_model.encode_text(text_tokens)[0]
-        
+
         return cond
 
 
 class VITDensePredT(VITDenseBase):
 
-    def __init__(self, extract_layers=(3, 6, 9), cond_layer=0, reduce_dim=128, n_heads=4, prompt='fixed', 
+    def __init__(self, extract_layers=(3, 6, 9), cond_layer=0, reduce_dim=128, n_heads=4, prompt='fixed',
                  depth=3, extra_blocks=0, reduce_cond=None, fix_shift=False,
-                 learn_trans_conv_only=False, refine=None, limit_to_clip_only=False, upsample=False, 
+                 learn_trans_conv_only=False, refine=None, limit_to_clip_only=False, upsample=False,
                  add_calibration=False, process_cond=None, not_pretrained=False):
         super().__init__()
         # device = 'cpu'
@@ -133,7 +133,7 @@ class VITDensePredT(VITDenseBase):
         self.cond_layer = cond_layer
         self.limit_to_clip_only = limit_to_clip_only
         self.process_cond = None
-        
+
         if add_calibration:
             self.calibration_conds = 1
 
@@ -141,7 +141,7 @@ class VITDensePredT(VITDenseBase):
 
         self.add_activation1 = True
 
-        import timm 
+        import timm
         self.model = timm.create_model('vit_base_patch16_384', pretrained=True)
         self.model.head = nn.Linear(768, 512 if reduce_cond is None else reduce_cond)
 
@@ -151,8 +151,8 @@ class VITDensePredT(VITDenseBase):
         import clip
         self.clip_model, _ = clip.load('ViT-B/16', device='cpu', jit=False)
         # del self.clip_model.visual
-        
-        
+
+
         self.token_shape = (14, 14)
 
         # conditional
@@ -166,10 +166,10 @@ class VITDensePredT(VITDenseBase):
         # self.film = AVAILABLE_BLOCKS['film'](512, 128)
         self.film_mul = nn.Linear(512 if reduce_cond is None else reduce_cond, reduce_dim)
         self.film_add = nn.Linear(512 if reduce_cond is None else reduce_cond, reduce_dim)
-        
+
         # DEPRECATED
         # self.conditional_map = {c['id']: c['synonyms'] for c in json.load(open(cond_map))}
-        
+
         assert len(self.extract_layers) == depth
 
         self.reduces = nn.ModuleList([nn.Linear(768, reduce_dim) for _ in range(depth)])
@@ -184,7 +184,7 @@ class VITDensePredT(VITDenseBase):
         if learn_trans_conv_only:
             for p in self.parameters():
                 p.requires_grad_(False)
-            
+
             for p in self.trans_conv.parameters():
                 p.requires_grad_(True)
 
@@ -211,7 +211,7 @@ class VITDensePredT(VITDenseBase):
                 self.process_cond = clamp_vec
 
             elif process_cond.endswith('.pth'):
-                
+
                 shift = torch.load(process_cond)
                 def add_shift(x):
                     return x + shift.to(x.device)
@@ -248,7 +248,7 @@ class VITDensePredT(VITDenseBase):
 
         a = None
         for i, (activation, block, reduce) in enumerate(zip(activations[::-1], self.blocks, self.reduces)):
-            
+
             if a is not None:
                 a = reduce(activation) + a
             else:
@@ -257,7 +257,7 @@ class VITDensePredT(VITDenseBase):
             if i == self.cond_layer:
                 if self.reduce_cond is not None:
                     cond = self.reduce_cond(cond)
-                
+
                 a = self.film_mul(cond) * a + self.film_add(cond)
 
             a = block(a)

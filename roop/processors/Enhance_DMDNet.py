@@ -1,6 +1,6 @@
 from typing import Any, List, Callable
-import cv2 
-import numpy as np
+import cv2
+import numpy np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -35,14 +35,14 @@ class Enhance_DMDNet():
         self.plugin_options = plugin_options
         if self.model_dmdnet is None:
             self.model_dmdnet = self.create(self.plugin_options["devicename"])
-            
+
 
     # temp_frame already cropped+aligned, bbox not
     def Run(self, source_faceset: FaceSet, target_face: Face, temp_frame: Frame) -> Frame:
         input_size = temp_frame.shape[1]
 
         result = self.enhance_face(source_faceset, temp_frame, target_face)
-        scale_factor = int(result.shape[1] / input_size)       
+        scale_factor = int(result.shape[1] / input_size)
         return result.astype(np.uint8), scale_factor
 
 
@@ -60,14 +60,14 @@ class Enhance_DMDNet():
                         89,95,96,93,91,90,
                         52,64,63,71,67,68,61,58,59,53,56,55,65,66,62,70,69,57,60,54
                         ]
-      
+
         pt68 = []
         for i in range(68):
             index = map106to68[i]
             pt68.append(pt106[index])
         return pt68
 
-        
+
 
 
     def check_bbox(self, imgs, boxes):
@@ -114,7 +114,7 @@ class Enhance_DMDNet():
         # else:
         #     temp_frame = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # RGB
 
-        lq = read_img_tensor(temp_frame)
+        lq = read_img_tensor(temp_frame, self.torchdevice)
 
         LQLocs = get_component_location(lq_landmarks)
         # self.check_bbox(lq, LQLocs.unsqueeze(0))
@@ -141,11 +141,12 @@ class Enhance_DMDNet():
                 # else:
                 #     temp_frame = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # RGB
 
-                ref_tensor = read_img_tensor(ref_image)
+                ref_tensor = read_img_tensor(ref_image) self.torchdevice) self.torchdevice)
                 ref_locs = get_component_location(lq_landmarks)
-                # self.check_bbox(ref_tensor, ref_locs.unsqueeze(0))
-
+                # self.check_bbox(ref_tensor, ref_locs.unsqueeze(0))ailable():
+                    ref_locs = ref_locs.to(self.torchdevice)
                 SpecificImgs.append(ref_tensor)
+                SpecificLocs.append(ref_locs.unsqueeze(0))
                 SpecificLocs.append(ref_locs.unsqueeze(0))
 
             SpecificImgs = torch.cat(SpecificImgs, dim=0)
@@ -172,7 +173,7 @@ class Enhance_DMDNet():
                 except Exception as e:
                     print(f'Error {e} there may be something wrong with the detected component locations.')
                     return temp_frame
-        
+
         if SpecificResult is not None:
             save_specific = SpecificResult * 0.5 + 0.5
             save_specific = save_specific.squeeze(0).permute(1, 2, 0).flip(2) # RGB->BGR
@@ -194,340 +195,341 @@ class Enhance_DMDNet():
         temp_frame = cv2.cvtColor(temp_frame, cv2.COLOR_RGB2BGR)  # RGB
         return temp_frame
 
-    
+
 
     def create(self, devicename):
         self.torchdevice = torch.device(devicename)
         model_dmdnet = DMDNet().to(self.torchdevice)
-        weights = torch.load('./models/DMDNet.pth', map_location=self.torchdevice) 
-        model_dmdnet.load_state_dict(weights, strict=False)
-
-        model_dmdnet.eval()
+        weights = torch.load('./models/DMDNet.pth', map_location=self.torchdevice)
+        model_dmdnet.load_state_dict(weights, strict=False)                checkpoint = torch.load(resolve_relative_path('../models/DMDNet.pth'), map_location='cpu')
+dmdnet.load_state_dict(checkpoint['model_state_dict'])
+        model_dmdnet.eval()odel_dmdnet.eval()
         num_params = 0
         for param in model_dmdnet.parameters():
-            num_params += param.numel()
-        return model_dmdnet
+            num_params += param.numel()evice = None
+        return model_dmdnet                if torch.cuda.is_available() and not devicename.startswith('cpu'):
 
-    # print('{:>8s} : {}'.format('Using device', device))
-    # print('{:>8s} : {:.2f}M'.format('Model params', num_params/1e6))
-
-
-
-def read_img_tensor(Img=None): #rgb -1~1 
+                    self.model_dmdnet = self.model_dmdnet.cuda()
+                    print("DMDNet using CUDA")    # print('{:>8s} : {:.2f}M'.format('Model params', num_params/1e6))
+                else:
+                    print("DMDNet using CPU")
+        finally:
     Img = Img.transpose((2, 0, 1))/255.0
     Img = torch.from_numpy(Img).float()
     normalize(Img, [0.5,0.5,0.5], [0.5,0.5,0.5], inplace=True)
     ImgTensor = Img.unsqueeze(0)
-    return ImgTensor
-
-
+    if device is not None and torch.cuda.is_available():Img=None): #rgb -1~1 unsqueeze(0)
+    Img = Img.transpose((2, 0, 1))/255.0        ImgTensor = ImgTensor.to(device)    return ImgTensor
+    return ImgTensor    Img = torch.from_numpy(Img).float()
+ace=True)
+ Img.unsqueeze(0)nt_location(Landmarks, re_read=False):
 def get_component_location(Landmarks, re_read=False):
     if re_read:
         ReadLandmark = []
         with open(Landmarks,'r') as f:
-            for line in f:
+            for line in f:'\n']
                 tmp = [float(i) for i in line.split(' ') if i != '\n']
                 ReadLandmark.append(tmp)
         ReadLandmark = np.array(ReadLandmark) #
-        Landmarks = np.reshape(ReadLandmark, [-1, 2]) # 68*2
-    Map_LE_B = list(np.hstack((range(17,22), range(36,42))))
-    Map_RE_B = list(np.hstack((range(22,27), range(42,48))))
-    Map_LE = list(range(36,42))
-    Map_RE = list(range(42,48))
-    Map_NO = list(range(29,36))
+        Landmarks = np.reshape(ReadLandmark, [-1, 2]) # 68*2i != '\n']
+    Map_LE_B = list(np.hstack((range(17,22), range(36,42))))pend(tmp)range(22,27), range(42,48))))
+    Map_RE_B = list(np.hstack((range(22,27), range(42,48))))(ReadLandmark) #
+    Map_LE = list(range(36,42))ReadLandmark, [-1, 2]) # 68*2
+    Map_RE = list(range(42,48))range(17,22), range(36,42))))
+    Map_NO = list(range(29,36))    Map_RE_B = list(np.hstack((range(22,27), range(42,48))))    Map_MO = list(range(48,68))
     Map_MO = list(range(48,68))
+8))=504
+    Landmarks[Landmarks>504]=504Map_NO = list(range(29,36))Landmarks[Landmarks<8]=8
+    Landmarks[Landmarks<8]=8list(range(48,68))
 
-    Landmarks[Landmarks>504]=504
-    Landmarks[Landmarks<8]=8
-    
     #left eye
-    Mean_LE = np.mean(Landmarks[Map_LE],0)
+    Mean_LE = np.mean(Landmarks[Map_LE],0)<8]=8- np.min(Landmarks[Map_LE_B,1])
     L_LE1 = Mean_LE[1] - np.min(Landmarks[Map_LE_B,1])
     L_LE1 = L_LE1 * 1.3
-    L_LE2 = L_LE1 / 1.9
-    L_LE_xy = L_LE1 + L_LE2
+    L_LE2 = L_LE1 / 1.9Map_LE],0)
+    L_LE_xy = L_LE1 + L_LE2Landmarks[Map_LE_B,1])
     L_LE_lt = [L_LE_xy/2, L_LE1]
-    L_LE_rb = [L_LE_xy/2, L_LE2]
-    Location_LE = np.hstack((Mean_LE - L_LE_lt + 1, Mean_LE + L_LE_rb)).astype(int)
+    L_LE_rb = [L_LE_xy/2, L_LE2]    L_LE2 = L_LE1 / 1.9    Location_LE = np.hstack((Mean_LE - L_LE_lt + 1, Mean_LE + L_LE_rb)).astype(int)
+    Location_LE = np.hstack((Mean_LE - L_LE_lt + 1, Mean_LE + L_LE_rb)).astype(int)L_LE1 + L_LE2
 
     #right eye
-    Mean_RE = np.mean(Landmarks[Map_RE],0)
+    Mean_RE = np.mean(Landmarks[Map_RE],0)tack((Mean_LE - L_LE_lt + 1, Mean_LE + L_LE_rb)).astype(int)- np.min(Landmarks[Map_RE_B,1])
     L_RE1 = Mean_RE[1] - np.min(Landmarks[Map_RE_B,1])
     L_RE1 = L_RE1 * 1.3
-    L_RE2 = L_RE1 / 1.9
-    L_RE_xy = L_RE1 + L_RE2
+    L_RE2 = L_RE1 / 1.9Map_RE],0)
+    L_RE_xy = L_RE1 + L_RE2Landmarks[Map_RE_B,1])
     L_RE_lt = [L_RE_xy/2, L_RE1]
-    L_RE_rb = [L_RE_xy/2, L_RE2]
-    Location_RE = np.hstack((Mean_RE - L_RE_lt + 1, Mean_RE + L_RE_rb)).astype(int)
+    L_RE_rb = [L_RE_xy/2, L_RE2]    L_RE2 = L_RE1 / 1.9    Location_RE = np.hstack((Mean_RE - L_RE_lt + 1, Mean_RE + L_RE_rb)).astype(int)
+    Location_RE = np.hstack((Mean_RE - L_RE_lt + 1, Mean_RE + L_RE_rb)).astype(int)xy = L_RE1 + L_RE2
 
     #nose
-    Mean_NO = np.mean(Landmarks[Map_NO],0)
-    L_NO1 =( np.max([Mean_NO[0] - Landmarks[31][0], Landmarks[35][0] - Mean_NO[0]])) * 1.25
+    Mean_NO = np.mean(Landmarks[Map_NO],0)1, Mean_RE + L_RE_rb)).astype(int)], Landmarks[35][0] - Mean_NO[0]])) * 1.25
+    L_NO1 =( np.max([Mean_NO[0] - Landmarks[31][0], Landmarks[35][0] - Mean_NO[0]])) * 1.251.1
     L_NO2 = (Landmarks[33][1] - Mean_NO[1]) * 1.1
-    L_NO_xy = L_NO1 * 2
-    L_NO_lt = [L_NO_xy/2, L_NO_xy - L_NO2]
-    L_NO_rb = [L_NO_xy/2, L_NO2]
-    Location_NO = np.hstack((Mean_NO - L_NO_lt + 1, Mean_NO + L_NO_rb)).astype(int)
-    
+    L_NO_xy = L_NO1 * 2Map_NO],0)y - L_NO2]
+    L_NO_lt = [L_NO_xy/2, L_NO_xy - L_NO2]) * 1.25
+    L_NO_rb = [L_NO_xy/2, L_NO2]L_NO2 = (Landmarks[33][1] - Mean_NO[1]) * 1.1Location_NO = np.hstack((Mean_NO - L_NO_lt + 1, Mean_NO + L_NO_rb)).astype(int)
+    Location_NO = np.hstack((Mean_NO - L_NO_lt + 1, Mean_NO + L_NO_rb)).astype(int)y = L_NO1 * 2
+
     #mouth
-    Mean_MO = np.mean(Landmarks[Map_MO],0)
+    Mean_MO = np.mean(Landmarks[Map_MO],0)Mean_NO - L_NO_lt + 1, Mean_NO + L_NO_rb)).astype(int)max(Landmarks[Map_MO],0) - np.min(Landmarks[Map_MO],0))/2,16)) * 1.1
     L_MO = np.max((np.max(np.max(Landmarks[Map_MO],0) - np.min(Landmarks[Map_MO],0))/2,16)) * 1.1
     MO_O = Mean_MO - L_MO + 1
     MO_T = Mean_MO + L_MO
     MO_T[MO_T>510]=510
+    Location_MO = np.hstack((MO_O, MO_T)).astype(int)    MO_O = Mean_MO - L_MO + 1    return torch.cat([torch.FloatTensor(Location_LE).unsqueeze(0), torch.FloatTensor(Location_RE).unsqueeze(0), torch.FloatTensor(Location_NO).unsqueeze(0), torch.FloatTensor(Location_MO).unsqueeze(0)], dim=0)
+    return torch.cat([torch.FloatTensor(Location_LE).unsqueeze(0), torch.FloatTensor(Location_RE).unsqueeze(0), torch.FloatTensor(Location_NO).unsqueeze(0), torch.FloatTensor(Location_MO).unsqueeze(0)], dim=0)    MO_T = Mean_MO + L_MO
+    MO_T[MO_T>510]=510
     Location_MO = np.hstack((MO_O, MO_T)).astype(int)
-    return torch.cat([torch.FloatTensor(Location_LE).unsqueeze(0), torch.FloatTensor(Location_RE).unsqueeze(0), torch.FloatTensor(Location_NO).unsqueeze(0), torch.FloatTensor(Location_MO).unsqueeze(0)], dim=0)
+or(Location_LE).unsqueeze(0), torch.FloatTensor(Location_RE).unsqueeze(0), torch.FloatTensor(Location_NO).unsqueeze(0), torch.FloatTensor(Location_MO).unsqueeze(0)], dim=0)
 
-
-
-
-def calc_mean_std_4D(feat, eps=1e-5):
+def calc_mean_std_4D(feat, eps=1e-5):ance to avoid divide-by-zero.
     # eps is a small value added to the variance to avoid divide-by-zero.
     size = feat.size()
     assert (len(size) == 4)
-    N, C = size[:2]
+    N, C = size[:2]e to avoid divide-by-zero. eps
     feat_var = feat.view(N, C, -1).var(dim=2) + eps
-    feat_std = feat_var.sqrt().view(N, C, 1, 1)
-    feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)
+    feat_std = feat_var.sqrt().view(N, C, 1, 1)1).mean(dim=2).view(N, C, 1, 1)
+    feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)    N, C = size[:2]    return feat_mean, feat_std
     return feat_mean, feat_std
-
-def adaptive_instance_normalization_4D(content_feat, style_feat): # content_feat is ref feature, style is degradate feature
+.view(N, C, 1, 1)ation_4D(content_feat, style_feat): # content_feat is ref feature, style is degradate feature
+def adaptive_instance_normalization_4D(content_feat, style_feat): # content_feat is ref feature, style is degradate featureC, 1, 1)
     size = content_feat.size()
     style_mean, style_std = calc_mean_std_4D(style_feat)
-    content_mean, content_std = calc_mean_std_4D(content_feat)
-    normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
-    return normalized_feat * style_std.expand(size) + style_mean.expand(size)
+    content_mean, content_std = calc_mean_std_4D(content_feat)eat is ref feature, style is degradate featured.expand(size)
+    normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)    size = content_feat.size()    return normalized_feat * style_std.expand(size) + style_mean.expand(size)
+    return normalized_feat * style_std.expand(size) + style_mean.expand(size)    style_mean, style_std = calc_mean_std_4D(style_feat)
 
-
+ntent_feat - content_mean.expand(size)) / content_std.expand(size)t_channels,conv_layer, norm_layer, kernel_size=3, stride=1,dilation=1, bias=True):
 def convU(in_channels, out_channels,conv_layer, norm_layer, kernel_size=3, stride=1,dilation=1, bias=True):
-    return nn.Sequential(
+    return nn.Sequential(nnels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),
         SpectralNorm(conv_layer(in_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),
-        nn.LeakyReLU(0.2),
-        SpectralNorm(conv_layer(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),
-    )
-    
+        nn.LeakyReLU(0.2),onvU(in_channels, out_channels,conv_layer, norm_layer, kernel_size=3, stride=1,dilation=1, bias=True):   SpectralNorm(conv_layer(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),
+        SpectralNorm(conv_layer(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),return nn.Sequential()
+    )        SpectralNorm(conv_layer(in_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=((kernel_size-1)//2)*dilation, bias=bias)),
 
-class MSDilateBlock(nn.Module):
+ernel_size-1)//2)*dilation, bias=bias)),
+class MSDilateBlock(nn.Module):ernel_size=3, dilation=[1,1,1,1], bias=True):
     def __init__(self, in_channels,conv_layer=nn.Conv2d, norm_layer=nn.BatchNorm2d, kernel_size=3, dilation=[1,1,1,1], bias=True):
         super(MSDilateBlock, self).__init__()
         self.conv1 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[0], bias=bias)
-        self.conv2 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[1], bias=bias)
+        self.conv2 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[1], bias=bias)as=True):
         self.conv3 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[2], bias=bias)
-        self.conv4 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[3], bias=bias)
-        self.convi =  SpectralNorm(conv_layer(in_channels*4, in_channels, kernel_size=kernel_size, stride=1, padding=(kernel_size-1)//2, bias=bias))
-    def forward(self, x):
-        conv1 = self.conv1(x)
-        conv2 = self.conv2(x)
+        self.conv4 =  convU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[3], bias=bias)vU(in_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[0], bias=bias)ctralNorm(conv_layer(in_channels*4, in_channels, kernel_size=kernel_size, stride=1, padding=(kernel_size-1)//2, bias=bias))
+        self.convi =  SpectralNorm(conv_layer(in_channels*4, in_channels, kernel_size=kernel_size, stride=1, padding=(kernel_size-1)//2, bias=bias))n_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[1], bias=bias)
+    def forward(self, x):n_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[2], bias=bias)
+        conv1 = self.conv1(x)n_channels, in_channels,conv_layer, norm_layer, kernel_size,dilation=dilation[3], bias=bias)
+        conv2 = self.conv2(x)lNorm(conv_layer(in_channels*4, in_channels, kernel_size=kernel_size, stride=1, padding=(kernel_size-1)//2, bias=bias))
         conv3 = self.conv3(x)
-        conv4 = self.conv4(x)
-        cat  = torch.cat([conv1, conv2, conv3, conv4], 1)
-        out = self.convi(cat) + x
-        return out
-
-
-class AdaptiveInstanceNorm(nn.Module):
+        conv4 = self.conv4(x)2, conv3, conv4], 1)
+        cat  = torch.cat([conv1, conv2, conv3, conv4], 1)lf.conv2(x).convi(cat) + x
+        out = self.convi(cat) + x        conv3 = self.conv3(x)        return out
+        return out        conv4 = self.conv4(x)
+, conv3, conv4], 1)
+:
+class AdaptiveInstanceNorm(nn.Module)::
     def __init__(self, in_channel):
-        super().__init__()
-        self.norm = nn.InstanceNorm2d(in_channel)
+        super().__init__()        self.norm = nn.InstanceNorm2d(in_channel)
+        self.norm = nn.InstanceNorm2d(in_channel)):
 
-    def forward(self, input, style):
-        style_mean, style_std = calc_mean_std_4D(style)
+    def forward(self, input, style):lc_mean_std_4D(style)
+        style_mean, style_std = calc_mean_std_4D(style)anceNorm2d(in_channel)ut)
         out = self.norm(input)
-        size = input.size()
-        out = style_std.expand(size) * out + style_mean.expand(size)
+        size = input.size()lf, input, style):e_std.expand(size) * out + style_mean.expand(size)
+        out = style_std.expand(size) * out + style_mean.expand(size)        style_mean, style_std = calc_mean_std_4D(style)        return out
         return out
 
-class NoiseInjection(nn.Module):
+class NoiseInjection(nn.Module):pand(size) * out + style_mean.expand(size)nnel):
     def __init__(self, channel):
         super().__init__()
-        self.weight = nn.Parameter(torch.zeros(1, channel, 1, 1))
+        self.weight = nn.Parameter(torch.zeros(1, channel, 1, 1))odule):ge, noise):
     def forward(self, image, noise):
         if noise is None:
-            b, c, h, w = image.shape
-            noise = image.new_empty(b, 1, h, w).normal_()
+            b, c, h, w = image.shapeeros(1, channel, 1, 1))h, w).normal_()
+            noise = image.new_empty(b, 1, h, w).normal_()    def forward(self, image, noise):        return image + self.weight * noise
         return image + self.weight * noise
 
-class StyledUpBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel_size=3, padding=1,upsample=False, noise_inject=False):
+class StyledUpBlock(nn.Module):new_empty(b, 1, h, w).normal_()channel, out_channel, kernel_size=3, padding=1,upsample=False, noise_inject=False):
+    def __init__(self, in_channel, out_channel, kernel_size=3, padding=1,upsample=False, noise_inject=False):        return image + self.weight * noise        super().__init__()
         super().__init__()
-
-        self.noise_inject = noise_inject
+nn.Module):nject = noise_inject
+        self.noise_inject = noise_injectchannel, kernel_size=3, padding=1,upsample=False, noise_inject=False):
         if upsample:
             self.conv1 = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-                SpectralNorm(nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding)),
-                nn.LeakyReLU(0.2),
-            )
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),injectnv2d(in_channel, out_channel, kernel_size, padding=padding)),
+                SpectralNorm(nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding)),sample:   nn.LeakyReLU(0.2),
+                nn.LeakyReLU(0.2),elf.conv1 = nn.Sequential(
+            )r=2, mode='bilinear', align_corners=False),
         else:
-            self.conv1 = nn.Sequential(
+            self.conv1 = nn.Sequential(nv2d(in_channel, out_channel, kernel_size, padding=padding)),
                 SpectralNorm(nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding)),
-                nn.LeakyReLU(0.2),
-                SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),
-            )
+                nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),
+                SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),al(
+            )ng=padding)),
         self.convup = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),nv2d(out_channel, out_channel, kernel_size, padding=padding)),nv2d(out_channel, out_channel, kernel_size, padding=padding)),
                 SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),
-                nn.LeakyReLU(0.2),
-                SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),
-            )
-        if self.noise_inject:
-            self.noise1 = NoiseInjection(out_channel)
-
+                nn.LeakyReLU(0.2),convup = nn.Sequential(   SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),
+                SpectralNorm(nn.Conv2d(out_channel, out_channel, kernel_size, padding=padding)),cale_factor=2, mode='bilinear', align_corners=False),
+            )ut_channel, kernel_size, padding=padding)),
+        if self.noise_inject:                nn.LeakyReLU(0.2),            self.noise1 = NoiseInjection(out_channel)
+            self.noise1 = NoiseInjection(out_channel)out_channel, out_channel, kernel_size, padding=padding)),
+            )        self.lrelu1 = nn.LeakyReLU(0.2)
         self.lrelu1 = nn.LeakyReLU(0.2)
 
-        self.ScaleModel1 = nn.Sequential(
+        self.ScaleModel1 = nn.Sequential( 1, 1)),
             SpectralNorm(nn.Conv2d(in_channel,out_channel,3, 1, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),alNorm(nn.Conv2d(out_channel, out_channel, 3, 1, 1))
             SpectralNorm(nn.Conv2d(out_channel, out_channel, 3, 1, 1))
         )
-        self.ShiftModel1 = nn.Sequential(
+        self.ShiftModel1 = nn.Sequential(nv2d(in_channel,out_channel,3, 1, 1)),
             SpectralNorm(nn.Conv2d(in_channel,out_channel,3, 1, 1)),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(nn.Conv2d(out_channel, out_channel, 3, 1, 1)),
-        )
-       
-    def forward(self, input, style):
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(out_channel, out_channel, 3, 1, 1)),
+            SpectralNorm(nn.Conv2d(out_channel, out_channel, 3, 1, 1)), self.ShiftModel1 = nn.Sequential( )
+        )n_channel,out_channel,3, 1, 1)),
+       le):
+    def forward(self, input, style):nv2d(out_channel, out_channel, 3, 1, 1)),)
         out = self.conv1(input)
         out = self.lrelu1(out)
-        Shift1 = self.ShiftModel1(style)
-        Scale1 = self.ScaleModel1(style)
+        Shift1 = self.ShiftModel1(style):tyle)
+        Scale1 = self.ScaleModel1(style)t)Shift1
         out = out * Scale1 + Shift1
-        if self.noise_inject:
-            out = self.noise1(out, noise=None)
-        outup = self.convup(out)
-        return outup
+        if self.noise_inject:1(style)t, noise=None)
+            out = self.noise1(out, noise=None)f.ScaleModel1(style).convup(out)
+        outup = self.convup(out)        out = out * Scale1 + Shift1        return outup
+        return outup        if self.noise_inject:
 
-
+####################
 ####################################################################
-###############Face Dictionary Generator
+###############Face Dictionary Generator######
 ####################################################################
-def AttentionBlock(in_channel):
-    return nn.Sequential(
-        SpectralNorm(nn.Conv2d(in_channel, in_channel, 3, 1, 1)),
-        nn.LeakyReLU(0.2),
-        SpectralNorm(nn.Conv2d(in_channel, in_channel, 3, 1, 1)),
-    )
+def AttentionBlock(in_channel):###
+    return nn.Sequential(nary Generatornv2d(in_channel, in_channel, 3, 1, 1)),
+        SpectralNorm(nn.Conv2d(in_channel, in_channel, 3, 1, 1)),###
+        nn.LeakyReLU(0.2),ttentionBlock(in_channel):   SpectralNorm(nn.Conv2d(in_channel, in_channel, 3, 1, 1)),
+        SpectralNorm(nn.Conv2d(in_channel, in_channel, 3, 1, 1)),    return nn.Sequential(    )
+    )n_channel, in_channel, 3, 1, 1)),
 
-class DilateResBlock(nn.Module):
+class DilateResBlock(nn.Module):channel, 3, 1, 1)),
     def __init__(self, dim, dilation=[5,3] ):
         super(DilateResBlock, self).__init__()
-        self.Res = nn.Sequential(
+        self.Res = nn.Sequential():nv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[0], dilation[0])),
             SpectralNorm(nn.Conv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[0], dilation[0])),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(nn.Conv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[1], dilation[1])),
-        )
-    def forward(self, x):
-        out = x + self.Res(x)
-        return out
+            nn.LeakyReLU(0.2),uper(DilateResBlock, self).__init__()   SpectralNorm(nn.Conv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[1], dilation[1])),
+            SpectralNorm(nn.Conv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[1], dilation[1])),uential(
+        )onv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[0], dilation[0])),
+    def forward(self, x):kyReLU(0.2),self.Res(x)
+        out = x + self.Res(x)            SpectralNorm(nn.Conv2d(dim, dim, 3, 1, ((3-1)//2)*dilation[1], dilation[1])),        return out
+        return out        )
 
 
 class KeyValue(nn.Module):
     def __init__(self, indim, keydim, valdim):
         super(KeyValue, self).__init__()
-        self.Key = nn.Sequential(
+        self.Key = nn.Sequential((indim, keydim, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, keydim, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),uper(KeyValue, self).__init__()   SpectralNorm(nn.Conv2d(keydim, keydim, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(keydim, keydim, kernel_size=(3,3), padding=(1,1), stride=1)),
         )
-        self.Value = nn.Sequential(
+        self.Value = nn.Sequential(nv2d(indim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(nn.Conv2d(valdim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
-        )
-    def forward(self, x):  
-        return self.Key(x), self.Value(x)
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(valdim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
+            SpectralNorm(nn.Conv2d(valdim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),uential(
+        ) valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
+    def forward(self, x):              nn.LeakyReLU(0.2),        return self.Key(x), self.Value(x)
+        return self.Key(x), self.Value(x)v2d(valdim, valdim, kernel_size=(3,3), padding=(1,1), stride=1)),
 
 class MaskAttention(nn.Module):
-    def __init__(self, indim):
+    def __init__(self, indim):lue(x)__init__()
         super(MaskAttention, self).__init__()
-        self.conv1 = nn.Sequential(
+        self.conv1 = nn.Sequential(:nv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),uper(MaskAttention, self).__init__()   SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
         )
-        self.conv2 = nn.Sequential(
+        self.conv2 = nn.Sequential(nv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
         )
-        self.conv3 = nn.Sequential(
+        self.conv3 = nn.Sequential(nv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim//3, indim//3, kernel_size=(3,3), padding=(1,1), stride=1)),
         )
-        self.convCat = nn.Sequential(
-            SpectralNorm(nn.Conv2d(indim//3 * 3, indim, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(nn.Conv2d(indim, indim, kernel_size=(3,3), padding=(1,1), stride=1)),
-        )
-    def forward(self, x, y, z):
-        c1 = self.conv1(x)
+        self.convCat = nn.Sequential(nv2d(indim//3 * 3, indim, kernel_size=(3,3), padding=(1,1), stride=1)),
+            SpectralNorm(nn.Conv2d(indim//3 * 3, indim, kernel_size=(3,3), padding=(1,1), stride=1)),e=1)),
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(indim, indim, kernel_size=(3,3), padding=(1,1), stride=1)),
+            SpectralNorm(nn.Conv2d(indim, indim, kernel_size=(3,3), padding=(1,1), stride=1)),ntial(
+        )n.Conv2d(indim//3 * 3, indim, kernel_size=(3,3), padding=(1,1), stride=1)),, z):
+    def forward(self, x, y, z):.2),
+        c1 = self.conv1(x)n.Conv2d(indim, indim, kernel_size=(3,3), padding=(1,1), stride=1)),
         c2 = self.conv2(y)
-        c3 = self.conv3(z)
-        return self.convCat(torch.cat([c1,c2,c3], dim=1))
+        c3 = self.conv3(z)    def forward(self, x, y, z):        return self.convCat(torch.cat([c1,c2,c3], dim=1))
+        return self.convCat(torch.cat([c1,c2,c3], dim=1))(x)
 
 class Query(nn.Module):
-    def __init__(self, indim, quedim):
+    def __init__(self, indim, quedim):at([c1,c2,c3], dim=1))()
         super(Query, self).__init__()
-        self.Query = nn.Sequential(
+        self.Query = nn.Sequential(dim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),
             SpectralNorm(nn.Conv2d(indim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(nn.Conv2d(quedim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),
-        )
-    def forward(self, x):
-        return self.Query(x)
+            nn.LeakyReLU(0.2),uper(Query, self).__init__()   SpectralNorm(nn.Conv2d(quedim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),
+            SpectralNorm(nn.Conv2d(quedim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),equential(
+        )Conv2d(indim, quedim, kernel_size=(3,3), padding=(1,1), stride=1)),
+    def forward(self, x):            nn.LeakyReLU(0.2),        return self.Query(x)
+        return self.Query(x), kernel_size=(3,3), padding=(1,1), stride=1)),
 
 def roi_align_self(input, location, target_size):
-    test = (target_size.item(),target_size.item())
+    test = (target_size.item(),target_size.item())        return self.Query(x)    return torch.cat([F.interpolate(input[i:i+1,:,location[i,1]:location[i,3],location[i,0]:location[i,2]],test,mode='bilinear',align_corners=False) for i in range(input.size(0))],0)
     return torch.cat([F.interpolate(input[i:i+1,:,location[i,1]:location[i,3],location[i,0]:location[i,2]],test,mode='bilinear',align_corners=False) for i in range(input.size(0))],0)
 
-class FeatureExtractor(nn.Module):
-    def __init__(self, ngf = 64, key_scale = 4):#
+class FeatureExtractor(nn.Module):em(),target_size.item()) = 64, key_scale = 4):#
+    def __init__(self, ngf = 64, key_scale = 4):#    return torch.cat([F.interpolate(input[i:i+1,:,location[i,1]:location[i,3],location[i,0]:location[i,2]],test,mode='bilinear',align_corners=False) for i in range(input.size(0))],0)        super().__init__()
         super().__init__()
 
         self.key_scale = 4
-        self.part_sizes = np.array([80,80,50,110]) #
-        self.feature_sizes = np.array([256,128,64]) # 
+        self.part_sizes = np.array([80,80,50,110]) #        super().__init__()        self.feature_sizes = np.array([256,128,64]) #
+        self.feature_sizes = np.array([256,128,64]) #
 
-        self.conv1 = nn.Sequential(
+        self.conv1 = nn.Sequential(([80,80,50,110]) #nv2d(3, ngf, 3, 2, 1)),
                 SpectralNorm(nn.Conv2d(3, ngf, 3, 2, 1)),
-                nn.LeakyReLU(0.2),
+                nn.LeakyReLU(0.2),rm(nn.Conv2d(ngf, ngf, 3, 1, 1)),
                 SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1)),
-            )
-        self.conv2 = nn.Sequential(
-            SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1)),
-            nn.LeakyReLU(0.2),
+            )),
+        self.conv2 = nn.Sequential(.2),nv2d(ngf, ngf, 3, 1, 1)),
+            SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1)), 1)),
+            nn.LeakyReLU(0.2),   )   SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1))
             SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1))
-        )
-        self.res1 = DilateResBlock(ngf, [5,3])
-        self.res2 = DilateResBlock(ngf, [5,3])
+        ), 1, 1)),
+        self.res1 = DilateResBlock(ngf, [5,3])            nn.LeakyReLU(0.2),        self.res2 = DilateResBlock(ngf, [5,3])
+        self.res2 = DilateResBlock(ngf, [5,3])    SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1))
 
-        
-        self.conv3 = nn.Sequential(
+
+        self.conv3 = nn.Sequential(lock(ngf, [5,3])nv2d(ngf, ngf*2, 3, 2, 1)),
             SpectralNorm(nn.Conv2d(ngf, ngf*2, 3, 2, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),alNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1)),
             SpectralNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1)),
             )
-        self.conv4 = nn.Sequential(
-            SpectralNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1)),
-            nn.LeakyReLU(0.2),
+        self.conv4 = nn.Sequential(nv2d(ngf*2, ngf*2, 3, 1, 1)),
+            SpectralNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1)),,
+            nn.LeakyReLU(0.2),   )   SpectralNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1))
             SpectralNorm(nn.Conv2d(ngf*2, ngf*2, 3, 1, 1))
-        )
-        self.res3 = DilateResBlock(ngf*2, [3,1])
-        self.res4 = DilateResBlock(ngf*2, [3,1])
+        ) 3, 1, 1)),
+        self.res3 = DilateResBlock(ngf*2, [3,1])            nn.LeakyReLU(0.2),        self.res4 = DilateResBlock(ngf*2, [3,1])
+        self.res4 = DilateResBlock(ngf*2, [3,1])ngf*2, ngf*2, 3, 1, 1))
 
-        self.conv5 = nn.Sequential(
+        self.conv5 = nn.Sequential(lock(ngf*2, [3,1])nv2d(ngf*2, ngf*4, 3, 2, 1)),
             SpectralNorm(nn.Conv2d(ngf*2, ngf*4, 3, 2, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2),alNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1)),
             SpectralNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1)),
         )
-        self.conv6 = nn.Sequential(
-            SpectralNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1)),
-            nn.LeakyReLU(0.2),
+        self.conv6 = nn.Sequential(nv2d(ngf*4, ngf*4, 3, 1, 1)),
+            SpectralNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1)),,
+            nn.LeakyReLU(0.2),   SpectralNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1))
             SpectralNorm(nn.Conv2d(ngf*4, ngf*4, 3, 1, 1))
-        )
-        self.res5 = DilateResBlock(ngf*4, [1,1])
-        self.res6 = DilateResBlock(ngf*4, [1,1])
+        ) 3, 1, 1)),
+        self.res5 = DilateResBlock(ngf*4, [1,1])            nn.LeakyReLU(0.2),        self.res6 = DilateResBlock(ngf*4, [1,1])
+        self.res6 = DilateResBlock(ngf*4, [1,1]))
 
         self.LE_256_Q = Query(ngf, ngf // self.key_scale)
         self.RE_256_Q = Query(ngf, ngf // self.key_scale)
@@ -535,364 +537,371 @@ class FeatureExtractor(nn.Module):
         self.LE_128_Q = Query(ngf * 2, ngf * 2 // self.key_scale)
         self.RE_128_Q = Query(ngf * 2, ngf * 2 // self.key_scale)
         self.MO_128_Q = Query(ngf * 2, ngf * 2 // self.key_scale)
-        self.LE_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)
-        self.RE_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)
-        self.MO_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)
-
-
-    def forward(self, img, locs):
+        self.LE_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale))
+        self.RE_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)        self.RE_128_Q = Query(ngf * 2, ngf * 2 // self.key_scale)        self.MO_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)
+        self.MO_64_Q = Query(ngf * 4, ngf * 4 // self.key_scale)        self.MO_128_Q = Query(ngf * 2, ngf * 2 // self.key_scale)
+* 4, ngf * 4 // self.key_scale)
+.key_scale)
+    def forward(self, img, locs):.key_scale)
         le_location = locs[:,0,:].int().cpu().numpy()
         re_location = locs[:,1,:].int().cpu().numpy()
-        no_location = locs[:,2,:].int().cpu().numpy()
-        mo_location = locs[:,3,:].int().cpu().numpy()
-        
-
-        f1_0 = self.conv1(img) 
+        no_location = locs[:,2,:].int().cpu().numpy()forward(self, img, locs):mo_location = locs[:,3,:].int().cpu().numpy()
+        mo_location = locs[:,3,:].int().cpu().numpy()        le_location = locs[:,0,:].int().cpu().numpy()
+        :].int().cpu().numpy()
+,:].int().cpu().numpy()
+        f1_0 = self.conv1(img) :].int().cpu().numpy()
         f1_1 = self.res1(f1_0)
-        f2_0 = self.conv2(f1_1)
+        f2_0 = self.conv2(f1_1)        f2_1 = self.res2(f2_0)
         f2_1 = self.res2(f2_0)
-
-        f3_0 = self.conv3(f2_1) 
-        f3_1 = self.res3(f3_0)
-        f4_0 = self.conv4(f3_1)
+)
+        f3_0 = self.conv3(f2_1)
+        f3_1 = self.res3(f3_0))
+        f4_0 = self.conv4(f3_1)        f4_1 = self.res4(f4_0)
         f4_1 = self.res4(f4_0)
-
-        f5_0 = self.conv5(f4_1) 
-        f5_1 = self.res5(f5_0)
-        f6_0 = self.conv6(f5_1)
-        f6_1 = self.res6(f6_0)
-
+)
+        f5_0 = self.conv5(f4_1)
+        f5_1 = self.res5(f5_0))
+        f6_0 = self.conv6(f5_1)        f6_1 = self.res6(f6_0)
+        f6_1 = self.res6(f6_0)        f5_0 = self.conv5(f4_1)
+es5(f5_0)
 
         ####ROI Align
         le_part_256 = roi_align_self(f2_1.clone(), le_location//2, self.part_sizes[0]//2)
-        re_part_256 = roi_align_self(f2_1.clone(), re_location//2, self.part_sizes[1]//2)
+        re_part_256 = roi_align_self(f2_1.clone(), re_location//2, self.part_sizes[1]//2)        mo_part_256 = roi_align_self(f2_1.clone(), mo_location//2, self.part_sizes[3]//2)
         mo_part_256 = roi_align_self(f2_1.clone(), mo_location//2, self.part_sizes[3]//2)
 
         le_part_128 = roi_align_self(f4_1.clone(), le_location//4, self.part_sizes[0]//4)
-        re_part_128 = roi_align_self(f4_1.clone(), re_location//4, self.part_sizes[1]//4)
+        re_part_128 = roi_align_self(f4_1.clone(), re_location//4, self.part_sizes[1]//4)        mo_part_256 = roi_align_self(f2_1.clone(), mo_location//2, self.part_sizes[3]//2)        mo_part_128 = roi_align_self(f4_1.clone(), mo_location//4, self.part_sizes[3]//4)
         mo_part_128 = roi_align_self(f4_1.clone(), mo_location//4, self.part_sizes[3]//4)
-
-        le_part_64 = roi_align_self(f6_1.clone(), le_location//8, self.part_sizes[0]//8)
-        re_part_64 = roi_align_self(f6_1.clone(), re_location//8, self.part_sizes[1]//8)
+)
+        le_part_64 = roi_align_self(f6_1.clone(), le_location//8, self.part_sizes[0]//8))
+        re_part_64 = roi_align_self(f6_1.clone(), re_location//8, self.part_sizes[1]//8)        mo_part_128 = roi_align_self(f4_1.clone(), mo_location//4, self.part_sizes[3]//4)        mo_part_64 = roi_align_self(f6_1.clone(), mo_location//8, self.part_sizes[3]//8)
         mo_part_64 = roi_align_self(f6_1.clone(), mo_location//8, self.part_sizes[3]//8)
-
-
-        le_256_q = self.LE_256_Q(le_part_256)
-        re_256_q = self.RE_256_Q(re_part_256)
+e(), le_location//8, self.part_sizes[0]//8)
+e(), re_location//8, self.part_sizes[1]//8)
+        le_256_q = self.LE_256_Q(le_part_256)e(), mo_location//8, self.part_sizes[3]//8)
+        re_256_q = self.RE_256_Q(re_part_256)        mo_256_q = self.MO_256_Q(mo_part_256)
         mo_256_q = self.MO_256_Q(mo_part_256)
 
         le_128_q = self.LE_128_Q(le_part_128)
-        re_128_q = self.RE_128_Q(re_part_128)
+        re_128_q = self.RE_128_Q(re_part_128)        mo_256_q = self.MO_256_Q(mo_part_256)        mo_128_q = self.MO_128_Q(mo_part_128)
         mo_128_q = self.MO_128_Q(mo_part_128)
-
-        le_64_q = self.LE_64_Q(le_part_64)
-        re_64_q = self.RE_64_Q(re_part_64)
+28)
+        le_64_q = self.LE_64_Q(le_part_64)28)
+        re_64_q = self.RE_64_Q(re_part_64)        mo_128_q = self.MO_128_Q(mo_part_128)        mo_64_q = self.MO_64_Q(mo_part_64)
         mo_64_q = self.MO_64_Q(mo_part_64)
 
         return {'f256': f2_1, 'f128': f4_1, 'f64': f6_1,\
             'le256': le_part_256, 're256': re_part_256, 'mo256': mo_part_256, \
             'le128': le_part_128, 're128': re_part_128, 'mo128': mo_part_128, \
             'le64': le_part_64, 're64': re_part_64, 'mo64': mo_part_64, \
-            'le_256_q': le_256_q, 're_256_q': re_256_q, 'mo_256_q': mo_256_q,\
-            'le_128_q': le_128_q, 're_128_q': re_128_q, 'mo_128_q': mo_128_q,\
-            'le_64_q': le_64_q, 're_64_q': re_64_q, 'mo_64_q': mo_64_q}
-
-
-class DMDNet(nn.Module):
+            'le_256_q': le_256_q, 're_256_q': re_256_q, 'mo_256_q': mo_256_q,\t_256, \128_q,\
+            'le_128_q': le_128_q, 're_128_q': re_128_q, 'mo_128_q': mo_128_q,\            'le128': le_part_128, 're128': re_part_128, 'mo128': mo_part_128, \            'le_64_q': le_64_q, 're_64_q': re_64_q, 'mo_64_q': mo_64_q}
+            'le_64_q': le_64_q, 're_64_q': re_64_q, 'mo_64_q': mo_64_q}            'le64': le_part_64, 're64': re_part_64, 'mo64': mo_part_64, \
+le_256_q, 're_256_q': re_256_q, 'mo_256_q': mo_256_q,\
+28_q, 'mo_128_q': mo_128_q,\
+class DMDNet(nn.Module):64_q, 're_64_q': re_64_q, 'mo_64_q': mo_64_q} = 64, banks_num = 128):
     def __init__(self, ngf = 64, banks_num = 128):
         super().__init__()
-        self.part_sizes = np.array([80,80,50,110]) # size for 512
-        self.feature_sizes = np.array([256,128,64]) # size for 512
+        self.part_sizes = np.array([80,80,50,110]) # size for 512class DMDNet(nn.Module):        self.feature_sizes = np.array([256,128,64]) # size for 512
+        self.feature_sizes = np.array([256,128,64]) # size for 512anks_num = 128):
+anks_num
+        self.banks_num = banks_num        self.part_sizes = np.array([80,80,50,110]) # size for 512        self.key_scale = 4
+        self.key_scale = 412
 
-        self.banks_num = banks_num
-        self.key_scale = 4
-
-        self.E_lq = FeatureExtractor(key_scale = self.key_scale)
+        self.E_lq = FeatureExtractor(key_scale = self.key_scale)        self.banks_num = banks_num        self.E_hq = FeatureExtractor(key_scale = self.key_scale)
         self.E_hq = FeatureExtractor(key_scale = self.key_scale)
 
         self.LE_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)
-        self.RE_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)
+        self.RE_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)        self.E_hq = FeatureExtractor(key_scale = self.key_scale)        self.MO_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)
         self.MO_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)
 
         self.LE_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)
-        self.RE_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)
+        self.RE_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)        self.MO_256_KV = KeyValue(ngf, ngf // self.key_scale, ngf)        self.MO_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)
         self.MO_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)
-
-        self.LE_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4)
-        self.RE_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4)
+)
+        self.LE_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4))
+        self.RE_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4)        self.MO_128_KV = KeyValue(ngf * 2 , ngf * 2 // self.key_scale, ngf * 2)        self.MO_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4)
         self.MO_64_KV = KeyValue(ngf * 4 , ngf * 4 // self.key_scale, ngf * 4)
-
-
-        self.LE_256_Attention = AttentionBlock(64)
-        self.RE_256_Attention = AttentionBlock(64)
+ // self.key_scale, ngf * 4)
+ // self.key_scale, ngf * 4)
+        self.LE_256_Attention = AttentionBlock(64) // self.key_scale, ngf * 4)
+        self.RE_256_Attention = AttentionBlock(64)        self.MO_256_Attention = AttentionBlock(64)
         self.MO_256_Attention = AttentionBlock(64)
 
         self.LE_128_Attention = AttentionBlock(128)
-        self.RE_128_Attention = AttentionBlock(128)
+        self.RE_128_Attention = AttentionBlock(128)        self.MO_256_Attention = AttentionBlock(64)        self.MO_128_Attention = AttentionBlock(128)
         self.MO_128_Attention = AttentionBlock(128)
-
-        self.LE_64_Attention = AttentionBlock(256)
-        self.RE_64_Attention = AttentionBlock(256)
+)
+        self.LE_64_Attention = AttentionBlock(256))
+        self.RE_64_Attention = AttentionBlock(256)        self.MO_128_Attention = AttentionBlock(128)        self.MO_64_Attention = AttentionBlock(256)
         self.MO_64_Attention = AttentionBlock(256)
-
-        self.LE_256_Mask = MaskAttention(64)
-        self.RE_256_Mask = MaskAttention(64)
+k(256)
+        self.LE_256_Mask = MaskAttention(64)k(256)
+        self.RE_256_Mask = MaskAttention(64)        self.MO_64_Attention = AttentionBlock(256)        self.MO_256_Mask = MaskAttention(64)
         self.MO_256_Mask = MaskAttention(64)
 
         self.LE_128_Mask = MaskAttention(128)
-        self.RE_128_Mask = MaskAttention(128)
+        self.RE_128_Mask = MaskAttention(128)        self.MO_256_Mask = MaskAttention(64)        self.MO_128_Mask = MaskAttention(128)
         self.MO_128_Mask = MaskAttention(128)
-
-        self.LE_64_Mask = MaskAttention(256)
-        self.RE_64_Mask = MaskAttention(256)
+)
+        self.LE_64_Mask = MaskAttention(256))
+        self.RE_64_Mask = MaskAttention(256)        self.MO_128_Mask = MaskAttention(128)        self.MO_64_Mask = MaskAttention(256)
         self.MO_64_Mask = MaskAttention(256)
-
+        self.LE_64_Mask = MaskAttention(256)        self.MSDilate = MSDilateBlock(ngf*4, dilation = [4,3,2,1])
         self.MSDilate = MSDilateBlock(ngf*4, dilation = [4,3,2,1])
 
         self.up1 = StyledUpBlock(ngf*4, ngf*2, noise_inject=False) #
-        self.up2 = StyledUpBlock(ngf*2, ngf, noise_inject=False) #
+        self.up2 = StyledUpBlock(ngf*2, ngf, noise_inject=False) #ock(ngf*4, dilation = [4,3,2,1])gf, ngf, noise_inject=False) #
         self.up3 = StyledUpBlock(ngf, ngf, noise_inject=False) #
-        self.up4 = nn.Sequential( 
-            SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1)),
-            nn.LeakyReLU(0.2),
+        self.up4 = nn.Sequential( ck(ngf*4, ngf*2, noise_inject=False) #nv2d(ngf, ngf, 3, 1, 1)),
+            SpectralNorm(nn.Conv2d(ngf, ngf, 3, 1, 1)),lock(ngf*2, ngf, noise_inject=False) #),
+            nn.LeakyReLU(0.2),lock(ngf, ngf, noise_inject=False) #
             UpResBlock(ngf),
-            UpResBlock(ngf),
-            SpectralNorm(nn.Conv2d(ngf, 3, kernel_size=3, stride=1, padding=1)),
-            nn.Tanh()
+            UpResBlock(ngf),orm(nn.Conv2d(ngf, ngf, 3, 1, 1)),orm(nn.Conv2d(ngf, 3, kernel_size=3, stride=1, padding=1)),
+            SpectralNorm(nn.Conv2d(ngf, 3, kernel_size=3, stride=1, padding=1)),   nn.LeakyReLU(0.2),   nn.Tanh()
+            nn.Tanh()           UpResBlock(ngf),       )
         )
- 
+ ng=1)),eter for backward update
         # define generic memory, revise register_buffer to register_parameter for backward update
         self.register_buffer('le_256_mem_key', torch.randn(128,16,40,40))
         self.register_buffer('re_256_mem_key', torch.randn(128,16,40,40))
-        self.register_buffer('mo_256_mem_key', torch.randn(128,16,55,55))
+        self.register_buffer('mo_256_mem_key', torch.randn(128,16,55,55))er for backward update
         self.register_buffer('le_256_mem_value', torch.randn(128,64,40,40))
-        self.register_buffer('re_256_mem_value', torch.randn(128,64,40,40))
-        self.register_buffer('mo_256_mem_value', torch.randn(128,64,55,55))
-        
-
-        self.register_buffer('le_128_mem_key', torch.randn(128,32,20,20))
+        self.register_buffer('re_256_mem_value', torch.randn(128,64,40,40))self.register_buffer('re_256_mem_key', torch.randn(128,16,40,40))self.register_buffer('mo_256_mem_value', torch.randn(128,64,55,55))
+        self.register_buffer('mo_256_mem_value', torch.randn(128,64,55,55))        self.register_buffer('mo_256_mem_key', torch.randn(128,16,55,55))
+        ))
+))
+        self.register_buffer('le_128_mem_key', torch.randn(128,32,20,20))))
         self.register_buffer('re_128_mem_key', torch.randn(128,32,20,20))
         self.register_buffer('mo_128_mem_key', torch.randn(128,32,27,27))
         self.register_buffer('le_128_mem_value', torch.randn(128,128,20,20))
-        self.register_buffer('re_128_mem_value', torch.randn(128,128,20,20))
-        self.register_buffer('mo_128_mem_value', torch.randn(128,128,27,27))
-
-        self.register_buffer('le_64_mem_key', torch.randn(128,64,10,10))
-        self.register_buffer('re_64_mem_key', torch.randn(128,64,10,10))
+        self.register_buffer('re_128_mem_value', torch.randn(128,128,20,20))        self.register_buffer('re_128_mem_key', torch.randn(128,32,20,20))        self.register_buffer('mo_128_mem_value', torch.randn(128,128,27,27))
+        self.register_buffer('mo_128_mem_value', torch.randn(128,128,27,27)))
+20))
+        self.register_buffer('le_64_mem_key', torch.randn(128,64,10,10))20))
+        self.register_buffer('re_64_mem_key', torch.randn(128,64,10,10)))
         self.register_buffer('mo_64_mem_key', torch.randn(128,64,13,13))
         self.register_buffer('le_64_mem_value', torch.randn(128,256,10,10))
-        self.register_buffer('re_64_mem_value', torch.randn(128,256,10,10))
-        self.register_buffer('mo_64_mem_value', torch.randn(128,256,13,13))
-
-    
+        self.register_buffer('re_64_mem_value', torch.randn(128,256,10,10))        self.register_buffer('re_64_mem_key', torch.randn(128,64,10,10))        self.register_buffer('mo_64_mem_value', torch.randn(128,256,13,13))
+        self.register_buffer('mo_64_mem_value', torch.randn(128,256,13,13))    self.register_buffer('mo_64_mem_key', torch.randn(128,64,13,13))
+e_64_mem_value', torch.randn(128,256,10,10))
+    ('re_64_mem_value', torch.randn(128,256,10,10))q):
     def readMem(self, k, v, q):
-        sim = F.conv2d(q, k)
+        sim = F.conv2d(q, k) 1 6*128
         score = F.softmax(sim/sqrt(sim.size(1)), dim=1) #B * S * 1 * 1 6*128
-        sb,sn,sw,sh = score.size()
+        sb,sn,sw,sh = score.size():1).unsqueeze(1)#2*1*M
         s_m = score.view(sb, -1).unsqueeze(1)#2*1*M
-        vb,vn,vw,vh = v.size()
+        vb,vn,vw,vh = v.size()1 6*128
         v_in = v.view(vb, -1).repeat(sb,1,1)#2*M*(c*w*h)
-        mem_out = torch.bmm(s_m, v_in).squeeze(1).view(sb, vn, vw,vh)
-        max_inds = torch.argmax(score, dim=1).squeeze()
-        return mem_out, max_inds
-    
-
+        mem_out = torch.bmm(s_m, v_in).squeeze(1).view(sb, vn, vw,vh).unsqueeze(1)#2*1*Mscore, dim=1).squeeze()
+        max_inds = torch.argmax(score, dim=1).squeeze()    vb,vn,vw,vh = v.size()    return mem_out, max_inds
+        return mem_out, max_inds        v_in = v.view(vb, -1).repeat(sb,1,1)#2*M*(c*w*h)
+    _in).squeeze(1).view(sb, vn, vw,vh)
+core, dim=1).squeeze():
     def memorize(self, img, locs):
         fs = self.E_hq(img, locs)
         LE256_key, LE256_value = self.LE_256_KV(fs['le256'])
-        RE256_key, RE256_value = self.RE_256_KV(fs['re256'])
+        RE256_key, RE256_value = self.RE_256_KV(fs['re256'])    def memorize(self, img, locs):        MO256_key, MO256_value = self.MO_256_KV(fs['mo256'])
         MO256_key, MO256_value = self.MO_256_KV(fs['mo256'])
 
         LE128_key, LE128_value = self.LE_128_KV(fs['le128'])
-        RE128_key, RE128_value = self.RE_128_KV(fs['re128'])
+        RE128_key, RE128_value = self.RE_128_KV(fs['re128'])        MO256_key, MO256_value = self.MO_256_KV(fs['mo256'])        MO128_key, MO128_value = self.MO_128_KV(fs['mo128'])
         MO128_key, MO128_value = self.MO_128_KV(fs['mo128'])
-
-        LE64_key, LE64_value = self.LE_64_KV(fs['le64'])
-        RE64_key, RE64_value = self.RE_64_KV(fs['re64'])
+8'])
+        LE64_key, LE64_value = self.LE_64_KV(fs['le64'])8'])
+        RE64_key, RE64_value = self.RE_64_KV(fs['re64'])        MO128_key, MO128_value = self.MO_128_KV(fs['mo128'])        MO64_key, MO64_value = self.MO_64_KV(fs['mo64'])
         MO64_key, MO64_value = self.MO_64_KV(fs['mo64'])
 
         Mem256 = {'LE256Key': LE256_key, 'LE256Value': LE256_value, 'RE256Key': RE256_key, 'RE256Value': RE256_value,'MO256Key': MO256_key, 'MO256Value': MO256_value}
-        Mem128 = {'LE128Key': LE128_key, 'LE128Value': LE128_value, 'RE128Key': RE128_key, 'RE128Value': RE128_value,'MO128Key': MO128_key, 'MO128Value': MO128_value}
+        Mem128 = {'LE128Key': LE128_key, 'LE128Value': LE128_value, 'RE128Key': RE128_key, 'RE128Value': RE128_value,'MO128Key': MO128_key, 'MO128Value': MO128_value}       MO64_key, MO64_value = self.MO_64_KV(fs['mo64'])       Mem64 = {'LE64Key': LE64_key, 'LE64Value': LE64_value, 'RE64Key': RE64_key, 'RE64Value': RE64_value,'MO64Key': MO64_key, 'MO64Value': MO64_value}
         Mem64 = {'LE64Key': LE64_key, 'LE64Value': LE64_value, 'RE64Key': RE64_key, 'RE64Value': RE64_value,'MO64Key': MO64_key, 'MO64Value': MO64_value}
- 
-        FS256 = {'LE256F':fs['le256'], 'RE256F':fs['re256'], 'MO256F':fs['mo256']}
-        FS128 = {'LE128F':fs['le128'], 'RE128F':fs['re128'], 'MO128F':fs['mo128']}
+ 256_key, 'RE256Value': RE256_value,'MO256Key': MO256_key, 'MO256Value': MO256_value}
+        FS256 = {'LE256F':fs['le256'], 'RE256F':fs['re256'], 'MO256F':fs['mo256']}ey': RE128_key, 'RE128Value': RE128_value,'MO128Key': MO128_key, 'MO128Value': MO128_value}o128']}
+        FS128 = {'LE128F':fs['le128'], 'RE128F':fs['re128'], 'MO128F':fs['mo128']}Mem64 = {'LE64Key': LE64_key, 'LE64Value': LE64_value, 'RE64Key': RE64_key, 'RE64Value': RE64_value,'MO64Key': MO64_key, 'MO64Value': MO64_value}FS64 = {'LE64F':fs['le64'], 'RE64F':fs['re64'], 'MO64F':fs['mo64']}
         FS64 = {'LE64F':fs['le64'], 'RE64F':fs['re64'], 'MO64F':fs['mo64']}
-        
-        return Mem256, Mem128, Mem64
-
+                FS256 = {'LE256F':fs['le256'], 'RE256F':fs['re256'], 'MO256F':fs['mo256']}        return Mem256, Mem128, Mem64
+        return Mem256, Mem128, Mem64':fs['mo128']}
+'RE64F':fs['re64'], 'MO64F':fs['mo64']}=None, sp_128=None, sp_64=None):
     def enhancer(self, fs_in, sp_256=None, sp_128=None, sp_64=None):
         le_256_q = fs_in['le_256_q']
-        re_256_q = fs_in['re_256_q']
-        mo_256_q = fs_in['mo_256_q']
+        re_256_q = fs_in['re_256_q']        mo_256_q = fs_in['mo_256_q']
+        mo_256_q = fs_in['mo_256_q']=None, sp_128=None, sp_64=None):
 
         le_128_q = fs_in['le_128_q']
-        re_128_q = fs_in['re_128_q']
+        re_128_q = fs_in['re_128_q']        mo_256_q = fs_in['mo_256_q']        mo_128_q = fs_in['mo_128_q']
         mo_128_q = fs_in['mo_128_q']
-
-        le_64_q = fs_in['le_64_q']
-        re_64_q = fs_in['re_64_q']
+']
+        le_64_q = fs_in['le_64_q']']
+        re_64_q = fs_in['re_64_q']        mo_128_q = fs_in['mo_128_q']        mo_64_q = fs_in['mo_64_q']
         mo_64_q = fs_in['mo_64_q']
+s_in['le_64_q']
 
-        
         ####for 256
         le_256_mem_g, le_256_inds = self.readMem(self.le_256_mem_key, self.le_256_mem_value, le_256_q)
-        re_256_mem_g, re_256_inds = self.readMem(self.re_256_mem_key, self.re_256_mem_value, re_256_q)
+        re_256_mem_g, re_256_inds = self.readMem(self.re_256_mem_key, self.re_256_mem_value, re_256_q)                mo_256_mem_g, mo_256_inds = self.readMem(self.mo_256_mem_key, self.mo_256_mem_value, mo_256_q)
         mo_256_mem_g, mo_256_inds = self.readMem(self.mo_256_mem_key, self.mo_256_mem_value, mo_256_q)
 
         le_128_mem_g, le_128_inds = self.readMem(self.le_128_mem_key, self.le_128_mem_value, le_128_q)
-        re_128_mem_g, re_128_inds = self.readMem(self.re_128_mem_key, self.re_128_mem_value, re_128_q)
+        re_128_mem_g, re_128_inds = self.readMem(self.re_128_mem_key, self.re_128_mem_value, re_128_q)        mo_256_mem_g, mo_256_inds = self.readMem(self.mo_256_mem_key, self.mo_256_mem_value, mo_256_q)        mo_128_mem_g, mo_128_inds = self.readMem(self.mo_128_mem_key, self.mo_128_mem_value, mo_128_q)
         mo_128_mem_g, mo_128_inds = self.readMem(self.mo_128_mem_key, self.mo_128_mem_value, mo_128_q)
-
-        le_64_mem_g, le_64_inds = self.readMem(self.le_64_mem_key, self.le_64_mem_value, le_64_q)
-        re_64_mem_g, re_64_inds = self.readMem(self.re_64_mem_key, self.re_64_mem_value, re_64_q)
+28_q)
+        le_64_mem_g, le_64_inds = self.readMem(self.le_64_mem_key, self.le_64_mem_value, le_64_q)28_q)
+        re_64_mem_g, re_64_inds = self.readMem(self.re_64_mem_key, self.re_64_mem_value, re_64_q)        mo_128_mem_g, mo_128_inds = self.readMem(self.mo_128_mem_key, self.mo_128_mem_value, mo_128_q)        mo_64_mem_g, mo_64_inds = self.readMem(self.mo_64_mem_key, self.mo_64_mem_value, mo_64_q)
         mo_64_mem_g, mo_64_inds = self.readMem(self.mo_64_mem_key, self.mo_64_mem_value, mo_64_q)
-
-        if sp_256 is not None and sp_128 is not None and sp_64 is not None:
-            le_256_mem_s, _ = self.readMem(sp_256['LE256Key'], sp_256['LE256Value'], le_256_q)
+_q)
+        if sp_256 is not None and sp_128 is not None and sp_64 is not None:_q)
+            le_256_mem_s, _ = self.readMem(sp_256['LE256Key'], sp_256['LE256Value'], le_256_q)_q)
             re_256_mem_s, _ = self.readMem(sp_256['RE256Key'], sp_256['RE256Value'], re_256_q)
             mo_256_mem_s, _ = self.readMem(sp_256['MO256Key'], sp_256['MO256Value'], mo_256_q)
-            le_256_mask = self.LE_256_Mask(fs_in['le256'],le_256_mem_s,le_256_mem_g)
-            le_256_mem = le_256_mask*le_256_mem_s + (1-le_256_mask)*le_256_mem_g
-            re_256_mask = self.RE_256_Mask(fs_in['re256'],re_256_mem_s,re_256_mem_g)
-            re_256_mem = re_256_mask*re_256_mem_s + (1-re_256_mask)*re_256_mem_g
-            mo_256_mask = self.MO_256_Mask(fs_in['mo256'],mo_256_mem_s,mo_256_mem_g)
+            le_256_mask = self.LE_256_Mask(fs_in['le256'],le_256_mem_s,le_256_mem_g) le_256_q)
+            le_256_mem = le_256_mask*le_256_mem_s + (1-le_256_mask)*le_256_mem_ge'], re_256_q)m_g)
+            re_256_mask = self.RE_256_Mask(fs_in['re256'],re_256_mem_s,re_256_mem_g) mo_256_q)
+            re_256_mem = re_256_mask*re_256_mem_s + (1-re_256_mask)*re_256_mem_gm_g)m_g)
+            mo_256_mask = self.MO_256_Mask(fs_in['mo256'],mo_256_mem_s,mo_256_mem_g)            le_256_mem = le_256_mask*le_256_mem_s + (1-le_256_mask)*le_256_mem_g            mo_256_mem = mo_256_mask*mo_256_mem_s + (1-mo_256_mask)*mo_256_mem_g
             mo_256_mem = mo_256_mask*mo_256_mem_s + (1-mo_256_mask)*mo_256_mem_g
 
             le_128_mem_s, _ = self.readMem(sp_128['LE128Key'], sp_128['LE128Value'], le_128_q)
-            re_128_mem_s, _ = self.readMem(sp_128['RE128Key'], sp_128['RE128Value'], re_128_q)
+            re_128_mem_s, _ = self.readMem(sp_128['RE128Key'], sp_128['RE128Value'], re_128_q)128_q)
             mo_128_mem_s, _ = self.readMem(sp_128['MO128Key'], sp_128['MO128Value'], mo_128_q)
-            le_128_mask = self.LE_128_Mask(fs_in['le128'],le_128_mem_s,le_128_mem_g)
-            le_128_mem = le_128_mask*le_128_mem_s + (1-le_128_mask)*le_128_mem_g
-            re_128_mask = self.RE_128_Mask(fs_in['re128'],re_128_mem_s,re_128_mem_g)
-            re_128_mem = re_128_mask*re_128_mem_s + (1-re_128_mask)*re_128_mem_g
-            mo_128_mask = self.MO_128_Mask(fs_in['mo128'],mo_128_mem_s,mo_128_mem_g)
+            le_128_mask = self.LE_128_Mask(fs_in['le128'],le_128_mem_s,le_128_mem_g) le_128_q)
+            le_128_mem = le_128_mask*le_128_mem_s + (1-le_128_mask)*le_128_mem_ge'], re_128_q)m_g)
+            re_128_mask = self.RE_128_Mask(fs_in['re128'],re_128_mem_s,re_128_mem_g) mo_128_q)
+            re_128_mem = re_128_mask*re_128_mem_s + (1-re_128_mask)*re_128_mem_gm_g)m_g)
+            mo_128_mask = self.MO_128_Mask(fs_in['mo128'],mo_128_mem_s,mo_128_mem_g)            le_128_mem = le_128_mask*le_128_mem_s + (1-le_128_mask)*le_128_mem_g            mo_128_mem = mo_128_mask*mo_128_mem_s + (1-mo_128_mask)*mo_128_mem_g
             mo_128_mem = mo_128_mask*mo_128_mem_s + (1-mo_128_mask)*mo_128_mem_g
 
             le_64_mem_s, _ = self.readMem(sp_64['LE64Key'], sp_64['LE64Value'], le_64_q)
-            re_64_mem_s, _ = self.readMem(sp_64['RE64Key'], sp_64['RE64Value'], re_64_q)
+            re_64_mem_s, _ = self.readMem(sp_64['RE64Key'], sp_64['RE64Value'], re_64_q)g mo_64_q)
             mo_64_mem_s, _ = self.readMem(sp_64['MO64Key'], sp_64['MO64Value'], mo_64_q)
-            le_64_mask = self.LE_64_Mask(fs_in['le64'],le_64_mem_s,le_64_mem_g)
-            le_64_mem = le_64_mask*le_64_mem_s + (1-le_64_mask)*le_64_mem_g
-            re_64_mask = self.RE_64_Mask(fs_in['re64'],re_64_mem_s,re_64_mem_g)
-            re_64_mem = re_64_mask*re_64_mem_s + (1-re_64_mask)*re_64_mem_g
-            mo_64_mask = self.MO_64_Mask(fs_in['mo64'],mo_64_mem_s,mo_64_mem_g)
-            mo_64_mem = mo_64_mask*mo_64_mem_s + (1-mo_64_mask)*mo_64_mem_g
-        else:
-            le_256_mem = le_256_mem_g
-            re_256_mem = re_256_mem_g
+            le_64_mask = self.LE_64_Mask(fs_in['le64'],le_64_mem_s,le_64_mem_g) le_64_q)
+            le_64_mem = le_64_mask*le_64_mem_s + (1-le_64_mask)*le_64_mem_ge'], re_64_q)m_g)
+            re_64_mask = self.RE_64_Mask(fs_in['re64'],re_64_mem_s,re_64_mem_g) mo_64_q)
+            re_64_mem = re_64_mask*re_64_mem_s + (1-re_64_mask)*re_64_mem_gm_g)m_g)
+            mo_64_mask = self.MO_64_Mask(fs_in['mo64'],mo_64_mem_s,mo_64_mem_g)e_64_mem = le_64_mask*le_64_mem_s + (1-le_64_mask)*le_64_mem_go_64_mem = mo_64_mask*mo_64_mem_s + (1-mo_64_mask)*mo_64_mem_g
+            mo_64_mem = mo_64_mask*mo_64_mem_s + (1-mo_64_mask)*mo_64_mem_gask(fs_in['re64'],re_64_mem_s,re_64_mem_g)
+        else:_64_mem_s + (1-re_64_mask)*re_64_mem_g
+            le_256_mem = le_256_mem_gask(fs_in['mo64'],mo_64_mem_s,mo_64_mem_g)
+            re_256_mem = re_256_mem_g_64_mem_s + (1-mo_64_mask)*mo_64_mem_g
             mo_256_mem = mo_256_mem_g
             le_128_mem = le_128_mem_g
-            re_128_mem = re_128_mem_g
-            mo_128_mem = mo_128_mem_g
-            le_64_mem = le_64_mem_g
-            re_64_mem = re_64_mem_g
+            re_128_mem = re_128_mem_g_g_g
+            mo_128_mem = mo_128_mem_g_g
+            le_64_mem = le_64_mem_g_g
+            re_64_mem = re_64_mem_g            re_128_mem = re_128_mem_g            mo_64_mem = mo_64_mem_g
             mo_64_mem = mo_64_mem_g
 
         le_256_mem_norm = adaptive_instance_normalization_4D(le_256_mem, fs_in['le256'])
-        re_256_mem_norm = adaptive_instance_normalization_4D(re_256_mem, fs_in['re256'])
+        re_256_mem_norm = adaptive_instance_normalization_4D(re_256_mem, fs_in['re256'])    mo_64_mem = mo_64_mem_gmo_256_mem_norm = adaptive_instance_normalization_4D(mo_256_mem, fs_in['mo256'])
         mo_256_mem_norm = adaptive_instance_normalization_4D(mo_256_mem, fs_in['mo256'])
-        
+
         ####for 128
         le_128_mem_norm = adaptive_instance_normalization_4D(le_128_mem, fs_in['le128'])
-        re_128_mem_norm = adaptive_instance_normalization_4D(re_128_mem, fs_in['re128'])
-        mo_128_mem_norm = adaptive_instance_normalization_4D(mo_128_mem, fs_in['mo128'])
-        
-        ####for 64
-        le_64_mem_norm = adaptive_instance_normalization_4D(le_64_mem, fs_in['le64'])
-        re_64_mem_norm = adaptive_instance_normalization_4D(re_64_mem, fs_in['re64'])
-        mo_64_mem_norm = adaptive_instance_normalization_4D(mo_64_mem, fs_in['mo64'])
-    
+        re_128_mem_norm = adaptive_instance_normalization_4D(re_128_mem, fs_in['re128'])mo_128_mem_norm = adaptive_instance_normalization_4D(mo_128_mem, fs_in['mo128'])
+        mo_128_mem_norm = adaptive_instance_normalization_4D(mo_128_mem, fs_in['mo128'])8
+        '])
+        ####for 64'])
+        le_64_mem_norm = adaptive_instance_normalization_4D(le_64_mem, fs_in['le64'])'])
+        re_64_mem_norm = adaptive_instance_normalization_4D(re_64_mem, fs_in['re64'])        mo_64_mem_norm = adaptive_instance_normalization_4D(mo_64_mem, fs_in['mo64'])
+        mo_64_mem_norm = adaptive_instance_normalization_4D(mo_64_mem, fs_in['mo64'])        ####for 64
+
 
         EnMem256 = {'LE256Norm': le_256_mem_norm, 'RE256Norm': re_256_mem_norm, 'MO256Norm': mo_256_mem_norm}
         EnMem128 = {'LE128Norm': le_128_mem_norm, 'RE128Norm': re_128_mem_norm, 'MO128Norm': mo_128_mem_norm}
         EnMem64 = {'LE64Norm': le_64_mem_norm, 'RE64Norm': re_64_mem_norm, 'MO64Norm': mo_64_mem_norm}
-        Ind256 = {'LE': le_256_inds, 'RE': re_256_inds, 'MO': mo_256_inds}
-        Ind128 = {'LE': le_128_inds, 'RE': re_128_inds, 'MO': mo_128_inds}
-        Ind64 = {'LE': le_64_inds, 'RE': re_64_inds, 'MO': mo_64_inds}
-        return EnMem256, EnMem128, EnMem64, Ind256, Ind128, Ind64
+        Ind256 = {'LE': le_256_inds, 'RE': re_256_inds, 'MO': mo_256_inds}mem_norm, 'MO256Norm': mo_256_mem_norm}nds}
+        Ind128 = {'LE': le_128_inds, 'RE': re_128_inds, 'MO': mo_128_inds}_128_mem_norm, 'MO128Norm': mo_128_mem_norm}inds}
+        Ind64 = {'LE': le_64_inds, 'RE': re_64_inds, 'MO': mo_64_inds}        EnMem64 = {'LE64Norm': le_64_mem_norm, 'RE64Norm': re_64_mem_norm, 'MO64Norm': mo_64_mem_norm}        return EnMem256, EnMem128, EnMem64, Ind256, Ind128, Ind64
+        return EnMem256, EnMem128, EnMem64, Ind256, Ind128, Ind646_inds, 'MO': mo_256_inds}
 
     def reconstruct(self, fs_in, locs, memstar):
         le_256_mem_norm, re_256_mem_norm, mo_256_mem_norm = memstar[0]['LE256Norm'], memstar[0]['RE256Norm'], memstar[0]['MO256Norm']
-        le_128_mem_norm, re_128_mem_norm, mo_128_mem_norm = memstar[1]['LE128Norm'], memstar[1]['RE128Norm'], memstar[1]['MO128Norm']
+        le_128_mem_norm, re_128_mem_norm, mo_128_mem_norm = memstar[1]['LE128Norm'], memstar[1]['RE128Norm'], memstar[1]['MO128Norm']        le_64_mem_norm, re_64_mem_norm, mo_64_mem_norm = memstar[2]['LE64Norm'], memstar[2]['RE64Norm'], memstar[2]['MO64Norm']
         le_64_mem_norm, re_64_mem_norm, mo_64_mem_norm = memstar[2]['LE64Norm'], memstar[2]['RE64Norm'], memstar[2]['MO64Norm']
-
-        le_256_final = self.LE_256_Attention(le_256_mem_norm - fs_in['le256']) * le_256_mem_norm + fs_in['le256']
-        re_256_final = self.RE_256_Attention(re_256_mem_norm - fs_in['re256']) * re_256_mem_norm + fs_in['re256']
+star[0]['MO256Norm']
+        le_256_final = self.LE_256_Attention(le_256_mem_norm - fs_in['le256']) * le_256_mem_norm + fs_in['le256']star[1]['MO128Norm']
+        re_256_final = self.RE_256_Attention(re_256_mem_norm - fs_in['re256']) * re_256_mem_norm + fs_in['re256']le_64_mem_norm, re_64_mem_norm, mo_64_mem_norm = memstar[2]['LE64Norm'], memstar[2]['RE64Norm'], memstar[2]['MO64Norm']mo_256_final = self.MO_256_Attention(mo_256_mem_norm - fs_in['mo256']) * mo_256_mem_norm + fs_in['mo256']
         mo_256_final = self.MO_256_Attention(mo_256_mem_norm - fs_in['mo256']) * mo_256_mem_norm + fs_in['mo256']
-        
+
         le_128_final = self.LE_128_Attention(le_128_mem_norm - fs_in['le128']) * le_128_mem_norm + fs_in['le128']
-        re_128_final = self.RE_128_Attention(re_128_mem_norm - fs_in['re128']) * re_128_mem_norm + fs_in['re128']
+        re_128_final = self.RE_128_Attention(re_128_mem_norm - fs_in['re128']) * re_128_mem_norm + fs_in['re128']mo_256_final = self.MO_256_Attention(mo_256_mem_norm - fs_in['mo256']) * mo_256_mem_norm + fs_in['mo256']mo_128_final = self.MO_128_Attention(mo_128_mem_norm - fs_in['mo128']) * mo_128_mem_norm + fs_in['mo128']
         mo_128_final = self.MO_128_Attention(mo_128_mem_norm - fs_in['mo128']) * mo_128_mem_norm + fs_in['mo128']
-        
-        le_64_final = self.LE_64_Attention(le_64_mem_norm - fs_in['le64']) * le_64_mem_norm + fs_in['le64']
-        re_64_final = self.RE_64_Attention(re_64_mem_norm - fs_in['re64']) * re_64_mem_norm + fs_in['re64']
+        e128']
+        le_64_final = self.LE_64_Attention(le_64_mem_norm - fs_in['le64']) * le_64_mem_norm + fs_in['le64']e128']
+        re_64_final = self.RE_64_Attention(re_64_mem_norm - fs_in['re64']) * re_64_mem_norm + fs_in['re64']        mo_128_final = self.MO_128_Attention(mo_128_mem_norm - fs_in['mo128']) * mo_128_mem_norm + fs_in['mo128']        mo_64_final = self.MO_64_Attention(mo_64_mem_norm - fs_in['mo64']) * mo_64_mem_norm + fs_in['mo64']
         mo_64_final = self.MO_64_Attention(mo_64_mem_norm - fs_in['mo64']) * mo_64_mem_norm + fs_in['mo64']
-
-
-        le_location = locs[:,0,:]
-        re_location = locs[:,1,:]
+Attention(le_64_mem_norm - fs_in['le64']) * le_64_mem_norm + fs_in['le64']
+Attention(re_64_mem_norm - fs_in['re64']) * re_64_mem_norm + fs_in['re64']
+        le_location = locs[:,0,:]Attention(mo_64_mem_norm - fs_in['mo64']) * mo_64_mem_norm + fs_in['mo64']
+        re_location = locs[:,1,:]        mo_location = locs[:,3,:]
         mo_location = locs[:,3,:]
-
+le_location = locs[:,0,:]# Somehow with latest Torch it doesn't like numpy wrappers anymore
         # Somehow with latest Torch it doesn't like numpy wrappers anymore
-        
-        # le_location = le_location.cpu().int().numpy()
-        # re_location = re_location.cpu().int().numpy()
-        # mo_location = mo_location.cpu().int().numpy()
-        le_location = le_location.cpu().int()
-        re_location = re_location.cpu().int()
-        mo_location = mo_location.cpu().int()
 
-        up_in_256 = fs_in['f256'].clone()# * 0
-        up_in_128 = fs_in['f128'].clone()# * 0
+        # le_location = le_location.cpu().int().numpy()
+        # re_location = re_location.cpu().int().numpy()t like numpy wrappers anymore().numpy()
+        # mo_location = mo_location.cpu().int().numpy()
+        le_location = le_location.cpu().int()().numpy()
+        re_location = re_location.cpu().int()        # re_location = re_location.cpu().int().numpy()        mo_location = mo_location.cpu().int()
+        mo_location = mo_location.cpu().int()).numpy()
+
+        up_in_256 = fs_in['f256'].clone()# * 0) 0
+        up_in_128 = fs_in['f128'].clone()# * 0        mo_location = mo_location.cpu().int()        up_in_64 = fs_in['f64'].clone()# * 0
         up_in_64 = fs_in['f64'].clone()# * 0
 
         for i in range(fs_in['f256'].size(0)):
             up_in_256[i:i+1,:,le_location[i,1]//2:le_location[i,3]//2,le_location[i,0]//2:le_location[i,2]//2] = F.interpolate(le_256_final[i:i+1,:,:,:].clone(), (le_location[i,3]//2-le_location[i,1]//2,le_location[i,2]//2-le_location[i,0]//2),mode='bilinear',align_corners=False)
-            up_in_256[i:i+1,:,re_location[i,1]//2:re_location[i,3]//2,re_location[i,0]//2:re_location[i,2]//2] = F.interpolate(re_256_final[i:i+1,:,:,:].clone(), (re_location[i,3]//2-re_location[i,1]//2,re_location[i,2]//2-re_location[i,0]//2),mode='bilinear',align_corners=False)
+            up_in_256[i:i+1,:,re_location[i,1]//2:re_location[i,3]//2,re_location[i,0]//2:re_location[i,2]//2] = F.interpolate(re_256_final[i:i+1,:,:,:].clone(), (re_location[i,3]//2-re_location[i,1]//2,re_location[i,2]//2-re_location[i,0]//2),mode='bilinear',align_corners=False)i+1,:,mo_location[i,1]//2:mo_location[i,3]//2,mo_location[i,0]//2:mo_location[i,2]//2] = F.interpolate(mo_256_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//2-mo_location[i,1]//2,mo_location[i,2]//2-mo_location[i,0]//2),mode='bilinear',align_corners=False)
             up_in_256[i:i+1,:,mo_location[i,1]//2:mo_location[i,3]//2,mo_location[i,0]//2:mo_location[i,2]//2] = F.interpolate(mo_256_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//2-mo_location[i,1]//2,mo_location[i,2]//2-mo_location[i,0]//2),mode='bilinear',align_corners=False)
-            
+
             up_in_128[i:i+1,:,le_location[i,1]//4:le_location[i,3]//4,le_location[i,0]//4:le_location[i,2]//4] = F.interpolate(le_128_final[i:i+1,:,:,:].clone(), (le_location[i,3]//4-le_location[i,1]//4,le_location[i,2]//4-le_location[i,0]//4),mode='bilinear',align_corners=False)
-            up_in_128[i:i+1,:,re_location[i,1]//4:re_location[i,3]//4,re_location[i,0]//4:re_location[i,2]//4] = F.interpolate(re_128_final[i:i+1,:,:,:].clone(), (re_location[i,3]//4-re_location[i,1]//4,re_location[i,2]//4-re_location[i,0]//4),mode='bilinear',align_corners=False)
+            up_in_128[i:i+1,:,re_location[i,1]//4:re_location[i,3]//4,re_location[i,0]//4:re_location[i,2]//4] = F.interpolate(re_128_final[i:i+1,:,:,:].clone(), (re_location[i,3]//4-re_location[i,1]//4,re_location[i,2]//4-re_location[i,0]//4),mode='bilinear',align_corners=False)            up_in_256[i:i+1,:,mo_location[i,1]//2:mo_location[i,3]//2,mo_location[i,0]//2:mo_location[i,2]//2] = F.interpolate(mo_256_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//2-mo_location[i,1]//2,mo_location[i,2]//2-mo_location[i,0]//2),mode='bilinear',align_corners=False)            up_in_128[i:i+1,:,mo_location[i,1]//4:mo_location[i,3]//4,mo_location[i,0]//4:mo_location[i,2]//4] = F.interpolate(mo_128_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//4-mo_location[i,1]//4,mo_location[i,2]//4-mo_location[i,0]//4),mode='bilinear',align_corners=False)
             up_in_128[i:i+1,:,mo_location[i,1]//4:mo_location[i,3]//4,mo_location[i,0]//4:mo_location[i,2]//4] = F.interpolate(mo_128_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//4-mo_location[i,1]//4,mo_location[i,2]//4-mo_location[i,0]//4),mode='bilinear',align_corners=False)
-
-            up_in_64[i:i+1,:,le_location[i,1]//8:le_location[i,3]//8,le_location[i,0]//8:le_location[i,2]//8] = F.interpolate(le_64_final[i:i+1,:,:,:].clone(), (le_location[i,3]//8-le_location[i,1]//8,le_location[i,2]//8-le_location[i,0]//8),mode='bilinear',align_corners=False)
-            up_in_64[i:i+1,:,re_location[i,1]//8:re_location[i,3]//8,re_location[i,0]//8:re_location[i,2]//8] = F.interpolate(re_64_final[i:i+1,:,:,:].clone(), (re_location[i,3]//8-re_location[i,1]//8,re_location[i,2]//8-re_location[i,0]//8),mode='bilinear',align_corners=False)
+e)
+            up_in_64[i:i+1,:,le_location[i,1]//8:le_location[i,3]//8,le_location[i,0]//8:le_location[i,2]//8] = F.interpolate(le_64_final[i:i+1,:,:,:].clone(), (le_location[i,3]//8-le_location[i,1]//8,le_location[i,2]//8-le_location[i,0]//8),mode='bilinear',align_corners=False)e)
+            up_in_64[i:i+1,:,re_location[i,1]//8:re_location[i,3]//8,re_location[i,0]//8:re_location[i,2]//8] = F.interpolate(re_64_final[i:i+1,:,:,:].clone(), (re_location[i,3]//8-re_location[i,1]//8,re_location[i,2]//8-re_location[i,0]//8),mode='bilinear',align_corners=False)    up_in_128[i:i+1,:,mo_location[i,1]//4:mo_location[i,3]//4,mo_location[i,0]//4:mo_location[i,2]//4] = F.interpolate(mo_128_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//4-mo_location[i,1]//4,mo_location[i,2]//4-mo_location[i,0]//4),mode='bilinear',align_corners=False)    up_in_64[i:i+1,:,mo_location[i,1]//8:mo_location[i,3]//8,mo_location[i,0]//8:mo_location[i,2]//8] = F.interpolate(mo_64_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//8-mo_location[i,1]//8,mo_location[i,2]//8-mo_location[i,0]//8),mode='bilinear',align_corners=False)
             up_in_64[i:i+1,:,mo_location[i,1]//8:mo_location[i,3]//8,mo_location[i,0]//8:mo_location[i,2]//8] = F.interpolate(mo_64_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//8-mo_location[i,1]//8,mo_location[i,2]//8-mo_location[i,0]//8),mode='bilinear',align_corners=False)
-        
-        ms_in_64 = self.MSDilate(fs_in['f64'].clone())
-        fea_up1 = self.up1(ms_in_64, up_in_64)
+        /8:le_location[i,3]//8,le_location[i,0]//8:le_location[i,2]//8] = F.interpolate(le_64_final[i:i+1,:,:,:].clone(), (le_location[i,3]//8-le_location[i,1]//8,le_location[i,2]//8-le_location[i,0]//8),mode='bilinear',align_corners=False)clone())
+        ms_in_64 = self.MSDilate(fs_in['f64'].clone()):re_location[i,3]//8,re_location[i,0]//8:re_location[i,2]//8] = F.interpolate(re_64_final[i:i+1,:,:,:].clone(), (re_location[i,3]//8-re_location[i,1]//8,re_location[i,2]//8-re_location[i,0]//8),mode='bilinear',align_corners=False)
+        fea_up1 = self.up1(ms_in_64, up_in_64):mo_location[i,3]//8,mo_location[i,0]//8:mo_location[i,2]//8] = F.interpolate(mo_64_final[i:i+1,:,:,:].clone(), (mo_location[i,3]//8-mo_location[i,1]//8,mo_location[i,2]//8-mo_location[i,0]//8),mode='bilinear',align_corners=False)
         fea_up2 = self.up2(fea_up1, up_in_128) #
-        fea_up3 = self.up3(fea_up2, up_in_256) #
-        output = self.up4(fea_up3) #
+        fea_up3 = self.up3(fea_up2, up_in_256) #lf.MSDilate(fs_in['f64'].clone()).up4(fea_up3) #
+        output = self.up4(fea_up3) #        fea_up1 = self.up1(ms_in_64, up_in_64)        return output
         return output
-
-    def generate_specific_dictionary(self, sp_imgs=None, sp_locs=None):
+ #imgs=None, sp_locs=None):
+    def generate_specific_dictionary(self, sp_imgs=None, sp_locs=None):        output = self.up4(fea_up3) #        return self.memorize(sp_imgs, sp_locs)
         return self.memorize(sp_imgs, sp_locs)
-
-    def forward(self, lq=None, loc=None, sp_256 = None, sp_128 = None, sp_64 = None):
-        try:
+=None, loc=None, sp_256 = None, sp_128 = None, sp_64 = None):
+    def forward(self, lq=None, loc=None, sp_256 = None, sp_128 = None, sp_64 = None):_locs=None):
+        try:p_imgs, sp_locs)lq, loc) # low quality images
             fs_in = self.E_lq(lq, loc) # low quality images
-        except Exception as e:
+        except Exception as e:    def forward(self, lq=None, loc=None, sp_256 = None, sp_128 = None, sp_64 = None):            print(e)
             print(e)
 
         GeMemNorm256, GeMemNorm128, GeMemNorm64, Ind256, Ind128, Ind64 = self.enhancer(fs_in)
         GeOut = self.reconstruct(fs_in, loc, memstar = [GeMemNorm256, GeMemNorm128, GeMemNorm64])
         if sp_256 is not None and sp_128 is not None and sp_64 is not None:
-            GSMemNorm256, GSMemNorm128, GSMemNorm64, _, _, _ = self.enhancer(fs_in, sp_256, sp_128, sp_64)
-            GSOut = self.reconstruct(fs_in, loc, memstar = [GSMemNorm256, GSMemNorm128, GSMemNorm64])
-        else:
-            GSOut = None
-        return GeOut, GSOut
+            GSMemNorm256, GSMemNorm128, GSMemNorm64, _, _, _ = self.enhancer(fs_in, sp_256, sp_128, sp_64)Norm256, GeMemNorm128, GeMemNorm64, Ind256, Ind128, Ind64 = self.enhancer(fs_in)SOut = self.reconstruct(fs_in, loc, memstar = [GSMemNorm256, GSMemNorm128, GSMemNorm64])
+            GSOut = self.reconstruct(fs_in, loc, memstar = [GSMemNorm256, GSMemNorm128, GSMemNorm64])onstruct(fs_in, loc, memstar = [GeMemNorm256, GeMemNorm128, GeMemNorm64])
+        else:ne and sp_128 is not None and sp_64 is not None:
+            GSOut = None            GSMemNorm256, GSMemNorm128, GSMemNorm64, _, _, _ = self.enhancer(fs_in, sp_256, sp_128, sp_64)        return GeOut, GSOut
+        return GeOut, GSOutonstruct(fs_in, loc, memstar = [GSMemNorm256, GSMemNorm128, GSMemNorm64])
 
-class UpResBlock(nn.Module):
+class UpResBlock(nn.Module):er = nn.BatchNorm2d):
     def __init__(self, dim, conv_layer = nn.Conv2d, norm_layer = nn.BatchNorm2d):
         super(UpResBlock, self).__init__()
-        self.Model = nn.Sequential(
-            SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),
-            nn.LeakyReLU(0.2),
-            SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),
-        )
-    def forward(self, x):
-        out = x + self.Model(x)
+        self.Model = nn.Sequential(yer(dim, dim, 3, 1, 1)),
+            SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),_layer = nn.BatchNorm2d):
+            nn.LeakyReLU(0.2),uper(UpResBlock, self).__init__()   SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),
+            SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),equential(
+        )ayer(dim, dim, 3, 1, 1)),
+    def forward(self, x):kyReLU(0.2),self.Model(x)
+        out = x + self.Model(x)            SpectralNorm(conv_layer(dim, dim, 3, 1, 1)),        return out
+
+
         return out
+
+
+
+
+        return out        out = x + self.Model(x)    def forward(self, x):        )
