@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import psutil
+import torch  # Add missing torch import
 
 from roop.ProcessOptions import ProcessOptions
 
@@ -192,14 +193,19 @@ class ProcessMgr:
                 self.options.frame_processing = True
 
         # Check for GPU availability for processing
-        self.using_gpu = (
-            torch.cuda.is_available()
-            and "CUDAExecutionProvider" in roop.globals.execution_providers
-        )
-        if self.using_gpu:
-            print(f"Using GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            print("Using CPU for processing")
+        self.using_gpu = False
+        try:
+            self.using_gpu = (
+                torch.cuda.is_available()
+                and "CUDAExecutionProvider" in roop.globals.execution_providers
+            )
+            if self.using_gpu:
+                print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+            else:
+                print("Using CPU for processing")
+        except Exception as e:
+            print(f"Error checking GPU availability: {e}")
+            print("Falling back to CPU processing")
 
     def run_batch(self, source_files, target_files, threads: int = 1):
         progress_bar_format = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"

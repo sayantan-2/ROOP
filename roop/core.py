@@ -100,9 +100,14 @@ def decode_execution_providers(execution_providers: List[str]) -> List[str]:
                     {"device_id": roop.globals.cuda_device_id},
                 )
                 torch.cuda.set_device(roop.globals.cuda_device_id)
+                print(
+                    f"Using CUDA device: {torch.cuda.get_device_name(roop.globals.cuda_device_id)}"
+                )
                 break
-    except:
-        pass
+    except Exception as e:
+        print(f"Error setting up CUDA device: {e}")
+        print("Removing CUDA from providers list")
+        list_providers = [p for p in list_providers if p != "CUDAExecutionProvider"]
 
     return list_providers
 
@@ -154,13 +159,17 @@ def release_resources() -> None:
         process_mgr = None
 
     gc.collect()
-    if (
-        "CUDAExecutionProvider" in roop.globals.execution_providers
-        and torch.cuda.is_available()
-    ):
-        with torch.cuda.device("cuda"):
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+    try:
+        if (
+            "CUDAExecutionProvider" in roop.globals.execution_providers
+            and torch.cuda.is_available()
+        ):
+            with torch.cuda.device("cuda"):
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+                print("CUDA memory cleared")
+    except Exception as e:
+        print(f"Error clearing CUDA memory: {e}")
 
 
 def pre_check() -> bool:

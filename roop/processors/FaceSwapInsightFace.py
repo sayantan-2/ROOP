@@ -2,6 +2,7 @@ import roop.globals
 import numpy as np
 import onnx
 import onnxruntime
+import torch
 
 from roop.typing import Face, Frame
 from roop.utilities import resolve_relative_path
@@ -44,17 +45,26 @@ class FaceSwapInsightFace:
         latent = np.dot(latent, self.emap)
         latent /= np.linalg.norm(latent)
 
-        use_gpu = (
-            "CUDAExecutionProvider" in roop.globals.execution_providers
-            and roop.globals.execution_providers[0] != "CPUExecutionProvider"
-        )
+        use_gpu = False
+        try:
+            use_gpu = (
+                "CUDAExecutionProvider" in roop.globals.execution_providers
+                and torch.cuda.is_available()
+                and not self.devicename.startswith("cpu")
+            )
+        except:
+            pass
 
         io_binding = self.model_swap_insightface.io_binding()
         io_binding.bind_cpu_input("target", temp_frame)
         io_binding.bind_cpu_input("source", latent)
 
         if use_gpu:
-            io_binding.bind_output("output", "cuda")
+            try:
+                io_binding.bind_output("output", "cuda")
+            except Exception as e:
+                print(f"Error binding output to CUDA: {e}")
+                io_binding.bind_output("output", self.devicename)
         else:
             io_binding.bind_output("output", self.devicename)
 
