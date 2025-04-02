@@ -33,7 +33,7 @@ TEMP_FILE = "temp.mp4"
 TEMP_DIRECTORY = "temp"
 
 THREAD_SEMAPHORE = threading.Semaphore()
-NULL_CONTEXT  = nullcontext()
+NULL_CONTEXT = nullcontext()
 
 
 # monkey patch ssl for mac
@@ -260,8 +260,10 @@ def str_to_class(module_name, class_name) -> Any:
         print(f"Module {module_name} does not exist")
     return class_
 
-def is_installed(name:str) -> bool:
-    return shutil.which(name);
+
+def is_installed(name: str) -> bool:
+    return shutil.which(name)
+
 
 # Taken from https://stackoverflow.com/a/68842705
 def get_platform() -> str:
@@ -274,13 +276,15 @@ def get_platform() -> str:
             pass
     return sys.platform
 
-def open_with_default_app(filename:str):
+
+def open_with_default_app(filename: str):
     if filename == None:
         return
     platform = get_platform()
     if platform == "darwin":
         subprocess.call(("open", filename))
-    elif platform in ["win64", "win32"]:        os.startfile(filename.replace("/", "\\"))
+    elif platform in ["win64", "win32"]:
+        os.startfile(filename.replace("/", "\\"))
     elif platform == "wsl":
         subprocess.call("cmd.exe /C start".split() + [filename])
     else:  # linux variants
@@ -350,15 +354,68 @@ gradio: {gradio.__version__}
 def compute_cosine_distance(emb1, emb2) -> float:
     return distance.cosine(emb1, emb2)
 
+
 def has_cuda_device():
-    return torch.cuda is not None and torch.cuda.is_available()
+    try:
+        return torch.cuda is not None and torch.cuda.is_available()
+    except Exception as e:
+        print(f"Error checking CUDA availability: {e}")
+        return False
+
+
+def check_cuda_system_compatibility():
+    """Check if the CUDA system is fully compatible with required libraries"""
+    if not has_cuda_device():
+        return False
+
+    try:
+        # Test importing required CUDA dependencies
+        import ctypes
+
+        cuda_paths = [
+            "/usr/local/cuda/lib64/libcudnn_adv.so.9",
+            "/usr/lib/x86_64-linux-gnu/libcudnn_adv.so.9",
+            # Add other potential paths
+        ]
+
+        cudnn_found = False
+        for path in cuda_paths:
+            try:
+                ctypes.CDLL(path)
+                cudnn_found = True
+                break
+            except OSError:
+                continue
+
+        if not cudnn_found:
+            print(
+                "WARNING: CUDA is available but cuDNN advanced library (libcudnn_adv.so.9) is missing."
+            )
+            print("Running on CPU instead. For better performance, install cuDNN:")
+            print("  - For Ubuntu/Debian: sudo apt install nvidia-cudnn")
+            print("  - For other systems: https://developer.nvidia.com/cudnn")
+            return False
+
+        return True
+    except Exception as e:
+        print(f"Error testing CUDA compatibility: {e}")
+        return False
 
 
 def print_cuda_info():
     try:
-        print(f'Number of CUDA devices: {torch.cuda.device_count()} Currently used Id: {torch.cuda.current_device()} Device Name: {torch.cuda.get_device_name(torch.cuda.current_device())}')
-    except:
-       print('No CUDA device found!')
+        if has_cuda_device():
+            print(
+                f"Number of CUDA devices: {torch.cuda.device_count()} Currently used Id: {torch.cuda.current_device()} Device Name: {torch.cuda.get_device_name(torch.cuda.current_device())}"
+            )
+            if not check_cuda_system_compatibility():
+                print("CUDA available but missing required libraries - using CPU mode.")
+        else:
+            print("No CUDA device found!")
+    except Exception as e:
+        print(f"Error getting CUDA information: {e}")
+        print("No CUDA device found or error accessing CUDA!")
+
 
 def clean_dir(path: str):
     contents = os.listdir(path)
@@ -371,23 +428,27 @@ def clean_dir(path: str):
                 shutil.rmtree(item_path)
         except Exception as e:
             print(e)
-            
+
 
 def conditional_thread_semaphore() -> Union[Any, Any]:
-    if 'DmlExecutionProvider' in roop.globals.execution_providers or 'ROCMExecutionProvider' in roop.globals.execution_providers:
+    if (
+        "DmlExecutionProvider" in roop.globals.execution_providers
+        or "ROCMExecutionProvider" in roop.globals.execution_providers
+    ):
         return THREAD_SEMAPHORE
     return NULL_CONTEXT
 
+
 def shuffle_array(arr):
-  """
-  Shuffles the given array in place using the Fisher-Yates shuffle algorithm.
+    """
+    Shuffles the given array in place using the Fisher-Yates shuffle algorithm.
 
-  Args:
-    arr: The array to be shuffled.
+    Args:
+      arr: The array to be shuffled.
 
-  Returns:
-    None. The array is shuffled in place.
-  """
-  for i in range(len(arr) - 1, 0, -1):
-    j = random.randint(0, i)
-    arr[i], arr[j] = arr[j], arr[i]
+    Returns:
+      None. The array is shuffled in place.
+    """
+    for i in range(len(arr) - 1, 0, -1):
+        j = random.randint(0, i)
+        arr[i], arr[j] = arr[j], arr[i]

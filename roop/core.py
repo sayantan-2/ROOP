@@ -119,7 +119,20 @@ def suggest_max_memory() -> int:
 
 
 def suggest_execution_providers() -> List[str]:
-    return encode_execution_providers(onnxruntime.get_available_providers())
+    available_providers = onnxruntime.get_available_providers()
+
+    # First check if CUDA is fully compatible
+    if "CUDAExecutionProvider" in available_providers:
+        from roop.utilities import check_cuda_system_compatibility
+
+        if not check_cuda_system_compatibility():
+            # Remove CUDA from available providers if not fully compatible
+            available_providers = [
+                p for p in available_providers if p != "CUDAExecutionProvider"
+            ]
+            print("CUDA provider removed due to missing dependencies.")
+
+    return encode_execution_providers(available_providers)
 
 
 def suggest_execution_threads() -> int:
@@ -162,7 +175,7 @@ def release_resources() -> None:
     try:
         if (
             "CUDAExecutionProvider" in roop.globals.execution_providers
-            and torch.cuda.is_available()
+            and has_cuda_device()
         ):
             with torch.cuda.device("cuda"):
                 torch.cuda.empty_cache()
@@ -178,6 +191,15 @@ def pre_check() -> bool:
             "Python version is not supported - please upgrade to 3.9 or higher."
         )
         return False
+
+    # Check CUDA availability early
+    from roop.utilities import check_cuda_system_compatibility
+
+    if "cuda" in get_device().lower() and not check_cuda_system_compatibility():
+        update_status(
+            "CUDA is available but missing required libraries (libcudnn_adv.so.9). Using CPU mode."
+        )
+        # Don't return False - we'll continue with CPU
 
     download_directory_path = util.resolve_relative_path("../models")
     util.conditional_download(

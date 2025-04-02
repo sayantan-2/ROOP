@@ -132,14 +132,19 @@ class VITDenseBase(nn.Module):
 
     def compute_conditional(self, conditional):
         import clip
+        from roop.utilities import has_cuda_device, check_cuda_system_compatibility
 
         dev = next(self.parameters()).device
 
         try:
-            if torch.cuda.is_available() and dev == torch.device("cpu"):
-                # If model is on CPU but GPU is available, keep computation on CPU to avoid device mismatch
-                pass
-            elif torch.cuda.is_available():
+            if has_cuda_device() and dev == torch.device("cpu"):
+                # Check if CUDA is fully compatible before attempting to use it
+                if check_cuda_system_compatibility():
+                    dev = torch.device("cuda")
+                else:
+                    # Stay on CPU if CUDA is missing required libraries
+                    pass
+            elif has_cuda_device():
                 dev = torch.device("cuda")
         except Exception as e:
             print(f"Error checking CUDA availability: {e}")
@@ -149,7 +154,7 @@ class VITDenseBase(nn.Module):
                 text_tokens = clip.tokenize(conditional).to(dev)
                 cond = self.clip_model.encode_text(text_tokens)
             except Exception as e:
-                print(f"Error encoding text with CLIP: {e}")
+                print(f"Error encoding text with CLIP on {dev}: {e}")
                 # Fallback to CPU if GPU encoding fails
                 text_tokens = clip.tokenize(conditional).to("cpu")
                 cond = self.clip_model.encode_text(text_tokens).to(dev)
@@ -230,12 +235,8 @@ class VITDensePredT(VITDenseBase):
             self.reduce_cond = None
 
         # self.film = AVAILABLE_BLOCKS['film'](512, 128)
-        self.film_mul = nn.Linear(
-            512 if reduce_cond is None else reduce_cond, reduce_dim
-        )
-        self.film_add = nn.Linear(
-            512 if reduce_cond is None else reduce_cond, reduce_dim
-        )
+        self.film_mul = nn.Linear(512 if reduce_cond is None else reduce_dim)
+        self.film_add = nn.Linear(512 if reduce_cond is None else reduce_dim)
 
         # DEPRECATED
         # self.conditional_map = {c['id']: c['synonyms'] for c in json.load(open(cond_map))}

@@ -5,7 +5,7 @@ import onnxruntime
 import torch
 
 from roop.typing import Face, Frame
-from roop.utilities import resolve_relative_path
+from roop.utilities import resolve_relative_path, check_cuda_system_compatibility
 
 
 class FaceSwapInsightFace:
@@ -30,14 +30,35 @@ class FaceSwapInsightFace:
             )
             graph = onnx.load(model_path).graph
             self.emap = onnx.numpy_helper.to_array(graph.initializer[-1])
-            self.devicename = self.plugin_options["devicename"].replace("mps", "cpu")
+
+            # Check if we should force CPU mode due to missing CUDA dependencies
+            force_cpu = False
+            if "cuda" in self.plugin_options["devicename"].lower():
+                if not check_cuda_system_compatibility():
+                    print(
+                        "Warning: CUDA requested but missing dependencies. Forcing CPU mode."
+                    )
+                    self.devicename = "cpu"
+                    force_cpu = True
+                else:
+                    self.devicename = self.plugin_options["devicename"]
+            else:
+                self.devicename = self.plugin_options["devicename"].replace(
+                    "mps", "cpu"
+                )
+
             self.input_mean = 0.0
             self.input_std = 255.0
-            # cuda_options = {"arena_extend_strategy": "kSameAsRequested", 'cudnn_conv_algo_search': 'DEFAULT'}
+
             sess_options = onnxruntime.SessionOptions()
             sess_options.enable_cpu_mem_arena = False
+
+            providers = roop.globals.execution_providers
+            if force_cpu:
+                providers = ["CPUExecutionProvider"]
+
             self.model_swap_insightface = onnxruntime.InferenceSession(
-                model_path, sess_options, providers=roop.globals.execution_providers
+                model_path, sess_options, providers=providers
             )
 
     def Run(self, source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
@@ -50,10 +71,11 @@ class FaceSwapInsightFace:
             use_gpu = (
                 "CUDAExecutionProvider" in roop.globals.execution_providers
                 and torch.cuda.is_available()
+                and check_cuda_system_compatibility()
                 and not self.devicename.startswith("cpu")
             )
-        except:
-            pass
+        except Exception as e:
+            print(f"Error checking GPU availability: {e}")
 
         io_binding = self.model_swap_insightface.io_binding()
         io_binding.bind_cpu_input("target", temp_frame)
@@ -64,7 +86,8 @@ class FaceSwapInsightFace:
                 io_binding.bind_output("output", "cuda")
             except Exception as e:
                 print(f"Error binding output to CUDA: {e}")
-                io_binding.bind_output("output", self.devicename)
+                io_binding.bind_output("output", "cpu")
+                use_gpu = False
         else:
             io_binding.bind_output("output", self.devicename)
 
