@@ -22,6 +22,7 @@ from time import time
 import roop.globals
 import roop.metadata
 import roop.utilities as util
+from roop.utilities import has_cuda_device, get_device
 import roop.util_ffmpeg as ffmpeg
 import ui.main as main
 from settings import Settings
@@ -194,8 +195,7 @@ def pre_check() -> bool:
 
     # Check CUDA availability early
     from roop.utilities import check_cuda_system_compatibility
-
-    if "cuda" in get_device().lower() and not check_cuda_system_compatibility():
+    if "cuda" in util.get_device().lower() and not check_cuda_system_compatibility():
         update_status(
             "CUDA is available but missing required libraries (libcudnn_adv.so.9). Using CPU mode."
         )
