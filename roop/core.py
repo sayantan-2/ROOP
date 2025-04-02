@@ -195,9 +195,10 @@ def pre_check() -> bool:
 
     # Check CUDA availability early
     from roop.utilities import check_cuda_system_compatibility
+
     if "cuda" in util.get_device().lower() and not check_cuda_system_compatibility():
         update_status(
-            "CUDA is available but missing required libraries (libcudnn_adv.so.9). Using CPU mode."
+            "CUDA is available but missing required libraries (libcudnn_adv.so.8). Using CPU mode."
         )
         # Don't return False - we'll continue with CPU
 

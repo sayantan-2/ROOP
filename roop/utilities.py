@@ -373,8 +373,8 @@ def check_cuda_system_compatibility():
         import ctypes
 
         cuda_paths = [
-            "/usr/local/cuda/lib64/libcudnn_adv.so.9",
-            "/usr/lib/x86_64-linux-gnu/libcudnn_adv.so.9",
+            "/usr/local/cuda/lib64/libcudnn_adv.so.8",
+            "/usr/lib/x86_64-linux-gnu/libcudnn_adv.so.8",
             # Add other potential paths
         ]
 
@@ -389,7 +389,7 @@ def check_cuda_system_compatibility():
 
         if not cudnn_found:
             print(
-                "WARNING: CUDA is available but cuDNN advanced library (libcudnn_adv.so.9) is missing."
+                "WARNING: CUDA is available but cuDNN advanced library (libcudnn_adv.so.8) is missing."
             )
             print("Running on CPU instead. For better performance, install cuDNN:")
             print("  - For Ubuntu/Debian: sudo apt install nvidia-cudnn")
